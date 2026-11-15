@@ -265,6 +265,10 @@ async function fetchJSON(url,ms){
 
 async function loadQ(){
   if(st.Q) return;
+  try{ await fetchQ(); }
+  catch(e){ st.Q=[2.0]; st.qt=[Date.now()]; }
+}
+async function fetchQ(){
   const nowD=new Date();
   const dEnd=nowD.toISOString().slice(0,10);
   const dStart=new Date(nowD.getTime()-95*864e5).toISOString().slice(0,10);
