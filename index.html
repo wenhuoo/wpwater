@@ -1,0 +1,595 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Western Port 浑浊度</title>
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+<style>
+:root{--bg:#080b10;--panel:#0f161d;--panel2:#141f28;--line:#1d2a35;
+--tx:#dce7f1;--mut:#7b90a3;--dim:#54687a;--teal:#33b5a5;--amber:#e9a24a;--red:#e0574c;--blue:#4a90d9}
+*{box-sizing:border-box}
+html,body{margin:0;padding:0}
+body{background:var(--bg);color:var(--tx);font-size:14px;line-height:1.55;-webkit-font-smoothing:antialiased;
+font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","PingFang SC","Microsoft YaHei",sans-serif}
+.wrap{max-width:1060px;margin:0 auto;padding:22px 20px 36px}
+header{display:flex;justify-content:space-between;align-items:center;gap:14px;flex-wrap:wrap;margin-bottom:13px}
+h1{margin:0;font-size:17px;font-weight:600;letter-spacing:.2px}
+h1 span{color:var(--dim);font-weight:400;font-size:12px;margin-left:8px}
+.status{display:flex;align-items:center;gap:8px;font-size:11.5px;color:var(--mut);
+background:var(--panel);border:1px solid var(--line);border-radius:999px;padding:6px 12px;white-space:nowrap}
+.dot{width:6px;height:6px;border-radius:50%;background:var(--teal);box-shadow:0 0 0 3px rgba(51,181,165,.15)}
+.dot.warn{background:var(--amber);box-shadow:0 0 0 3px rgba(233,162,74,.15)}
+.dot.err{background:var(--red);box-shadow:0 0 0 3px rgba(224,87,76,.15)}
+.btn{background:var(--panel2);border:1px solid var(--line);color:var(--mut);border-radius:8px;
+padding:6px 11px;font-size:11.5px;cursor:pointer;font-family:inherit}
+.btn:hover{color:var(--tx);border-color:#2c3f4e}
+.card{background:var(--panel);border:1px solid var(--line);border-radius:14px}
+.top{display:grid;grid-template-columns:1.12fr 1fr;gap:13px;margin-bottom:13px}
+@media(max-width:820px){.top{grid-template-columns:1fr}}
+.mapwrap{position:relative;border-radius:14px;overflow:hidden;border:1px solid var(--line);min-height:362px}
+#map{position:absolute;inset:0;background:#0b1016}
+.maphint{position:absolute;left:9px;bottom:9px;z-index:600;font-size:10.5px;color:#a9bccd;
+background:rgba(8,12,17,.8);border-radius:6px;padding:3px 8px;pointer-events:none}
+.readout{padding:14px 16px 12px;display:flex;flex-direction:column;align-items:center}
+.gtag{font-size:10.5px;color:var(--dim);letter-spacing:.6px}
+#gauge{width:214px;height:214px;display:block}
+.metrics{display:grid;grid-template-columns:repeat(3,1fr);gap:7px;width:100%;margin-top:9px}
+.m{background:var(--panel2);border:1px solid #1a2731;border-radius:9px;padding:8px 5px;text-align:center}
+.m .k{font-size:10px;color:var(--dim)}
+.m .v{font-size:15px;font-weight:500;margin-top:1px;font-variant-numeric:tabular-nums}
+.m .v em{font-style:normal;font-size:9.5px;color:var(--dim);margin-left:2px}
+.rel{font-size:11.5px;color:var(--mut);margin-top:9px;text-align:center}
+.rel b{color:var(--tx);font-weight:500}
+.chartcard{padding:13px 16px 9px;margin-bottom:13px}
+.chead{display:flex;justify-content:space-between;align-items:baseline;margin-bottom:2px;flex-wrap:wrap;gap:8px}
+.chead h2{margin:0;font-size:12.5px;font-weight:500;letter-spacing:.3px}
+.legend{display:flex;gap:13px;font-size:10.5px;color:var(--dim)}
+.legend i{display:inline-block;width:13px;height:3px;border-radius:2px;vertical-align:middle;margin-right:4px}
+#chart{width:100%;display:block}
+.peak{font-size:11.5px;color:var(--mut);margin-top:3px;min-height:17px}
+.peak b{color:var(--tx);font-weight:500}
+.strip{display:flex;flex-wrap:wrap;gap:4px 20px;font-size:11.5px;color:var(--mut);padding:9px 16px;margin-bottom:13px}
+.strip b{color:var(--tx);font-weight:500;font-variant-numeric:tabular-nums}
+.strip span{white-space:nowrap}
+.err{background:#2a1414;border:1px solid #5c2a26;color:#f0a79f;border-radius:10px;
+padding:9px 13px;font-size:12px;margin-bottom:12px}
+.foot{color:var(--dim);font-size:10.5px;text-align:center;line-height:1.9}
+.foot a{color:#4f8ab5;text-decoration:none}
+.leaflet-container{background:#0b1016;font-family:inherit}
+.leaflet-control-attribution{display:none}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <header>
+    <h1>Western Port 浑浊度<span id="subline">悬沙浓度 · 实时</span></h1>
+    <div style="display:flex;gap:8px;align-items:center">
+      <div class="status"><span class="dot" id="dot"></span><span id="statustext">连接中</span></div>
+      <button class="btn" id="refresh">刷新</button>
+    </div>
+  </header>
+
+  <div id="errbox"></div>
+
+  <div class="top">
+    <div class="mapwrap">
+      <div id="map"></div>
+      <div class="maphint">点击地图选点</div>
+    </div>
+    <section class="card readout">
+      <div class="gtag">当前悬沙浓度</div>
+      <svg id="gauge" viewBox="0 0 250 250"></svg>
+      <div class="metrics">
+        <div class="m"><div class="k">浊度</div><div class="v"><span id="m-ntu">–</span><em>NTU</em></div></div>
+        <div class="m"><div class="k">透明度</div><div class="v"><span id="m-sd">–</span><em>m</em></div></div>
+        <div class="m"><div class="k">本月典型</div><div class="v"><span id="m-typ">–</span><em>mg/L</em></div></div>
+      </div>
+      <div class="rel" id="rel">–</div>
+    </section>
+  </div>
+
+  <section class="card chartcard">
+    <div class="chead">
+      <h2 id="chartTitle">过去 7 天 → 未来 7 天</h2>
+      <div class="legend">
+        <span><i style="background:#33b5a5"></i>悬沙 TSS（mg/L）</span>
+        <span><i style="background:#4a90d9"></i>潮位（m）</span>
+      </div>
+    </div>
+    <svg id="chart" viewBox="0 0 900 300"></svg>
+    <div class="peak" id="peakline"></div>
+  </section>
+
+  <section class="card strip" id="strip"></section>
+
+  <div class="foot">
+    数据 Open-Meteo（ECMWF · ERA5 · 波浪模型）· 潮汐调和常数标定自 Stony Point 潮汐表<br>
+    <a href="https://github.com/wenhuoo/wpwater#readme">方法与可信度边界</a>
+  </div>
+</div>
+
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script>
+const BAY=[[[-38.476,145.0253],[-38.4814,145.0274],[-38.4845,145.0331],[-38.4864,145.0313],[-38.5291,145.0993],[-38.5197,145.1197],[-38.5179,145.1158],[-38.5054,145.1274],[-38.5081,145.1323],[-38.5046,145.1456],[-38.4982,145.1488],[-38.4927,145.148],[-38.488,145.1526],[-38.4829,145.1517],[-38.481,145.1551],[-38.4753,145.1569],[-38.4656,145.1661],[-38.4625,145.1807],[-38.4562,145.1949],[-38.4509,145.2007],[-38.4488,145.2143],[-38.4501,145.2288],[-38.447,145.2436],[-38.4509,145.2669],[-38.4504,145.2939],[-38.4521,145.3012],[-38.4546,145.3025],[-38.4524,145.2952],[-38.4545,145.289],[-38.453,145.2958],[-38.4553,145.2975],[-38.455,145.2841],[-38.4584,145.2778],[-38.4554,145.2872],[-38.4596,145.2867],[-38.4564,145.2886],[-38.4604,145.311],[-38.4657,145.3102],[-38.4669,145.3021],[-38.4763,145.297],[-38.4804,145.2908],[-38.4869,145.2917],[-38.4888,145.2944],[-38.4889,145.2999],[-38.4856,145.3055],[-38.49,145.3047],[-38.4944,145.3071],[-38.4974,145.3045],[-38.4974,145.2995],[-38.5031,145.2969],[-38.5062,145.2979],[-38.5096,145.3197],[-38.5049,145.3328],[-38.5095,145.3396],[-38.51,145.3466],[-38.5085,145.3495],[-38.5056,145.349],[-38.5092,145.3524],[-38.5086,145.3573],[-38.5113,145.3592],[-38.5119,145.3628],[-38.5121,145.36],[-38.5126,145.3628],[-38.5157,145.3639],[-38.5239,145.3444],[-38.535,145.3407],[-38.5408,145.3436],[-38.5463,145.353],[-38.5498,145.3552],[-38.5504,145.363],[-38.5377,145.3754],[-38.536,145.3718],[-38.5269,145.3696],[-38.5236,145.3642],[-38.5209,145.3637],[-38.5197,145.3887],[-38.513,145.4197],[-38.5072,145.4272],[-38.4973,145.4304],[-38.4936,145.4348],[-38.486,145.431],[-38.4805,145.4327],[-38.4746,145.4275],[-38.4715,145.4178],[-38.4659,145.4254],[-38.4606,145.4283],[-38.4542,145.4298],[-38.4448,145.4282],[-38.4388,145.4333],[-38.435,145.4338],[-38.4276,145.4323],[-38.4174,145.4269],[-38.4071,145.4165],[-38.4105,145.4297],[-38.4083,145.4425],[-38.4126,145.4532],[-38.4088,145.4596],[-38.4072,145.4814],[-38.4142,145.4879],[-38.4158,145.4933],[-38.4154,145.5154],[-38.4037,145.5298],[-38.3879,145.5417],[-38.3624,145.5513],[-38.3495,145.552],[-38.3395,145.5451],[-38.3365,145.5394],[-38.3344,145.5257],[-38.3388,145.5173],[-38.3377,145.5153],[-38.3176,145.5155],[-38.3047,145.5215],[-38.2985,145.5219],[-38.2909,145.5179],[-38.2803,145.5014],[-38.2703,145.4975],[-38.2645,145.4977],[-38.2501,145.4904],[-38.2437,145.4928],[-38.2387,145.4887],[-38.2333,145.4886],[-38.2341,145.4856],[-38.2295,145.4744],[-38.228,145.46],[-38.2189,145.4525],[-38.2195,145.4417],[-38.217,145.4399],[-38.2185,145.4362],[-38.2165,145.4244],[-38.2259,145.4161],[-38.228,145.4109],[-38.2243,145.3923],[-38.2195,145.3918],[-38.2207,145.3902],[-38.2189,145.3875],[-38.2225,145.3894],[-38.221,145.3845],[-38.2223,145.3667],[-38.2146,145.3522],[-38.2138,145.3462],[-38.2186,145.3403],[-38.2226,145.3394],[-38.2264,145.3429],[-38.2296,145.3413],[-38.2331,145.337],[-38.2323,145.3352],[-38.2361,145.3326],[-38.235,145.3271],[-38.2374,145.3249],[-38.242,145.325],[-38.2413,145.3219],[-38.2451,145.3147],[-38.2483,145.2971],[-38.2457,145.283],[-38.242,145.2772],[-38.2344,145.2798],[-38.2279,145.2762],[-38.2261,145.2803],[-38.2255,145.2643],[-38.2295,145.2588],[-38.2352,145.259],[-38.2347,145.2562],[-38.2382,145.2611],[-38.2428,145.2629],[-38.2483,145.2479],[-38.2487,145.2513],[-38.2543,145.2477],[-38.276,145.2242],[-38.2882,145.2219],[-38.2901,145.2229],[-38.2903,145.2281],[-38.3004,145.2241],[-38.3091,145.2254],[-38.3104,145.2238],[-38.3066,145.2192],[-38.3043,145.2057],[-38.2997,145.2039],[-38.2998,145.1981],[-38.3029,145.196],[-38.31,145.1981],[-38.3109,145.2003],[-38.3115,145.1975],[-38.3151,145.1973],[-38.3117,145.2004],[-38.3154,145.1985],[-38.3154,145.1964],[-38.3208,145.199],[-38.3277,145.1963],[-38.3286,145.1984],[-38.333,145.1985],[-38.3366,145.2052],[-38.34,145.2063],[-38.3422,145.2149],[-38.3474,145.2187],[-38.3549,145.214],[-38.3655,145.215],[-38.3715,145.2192],[-38.3731,145.2234],[-38.3751,145.2218],[-38.3772,145.2232],[-38.38,145.2146],[-38.3731,145.2005],[-38.3674,145.1966],[-38.3685,145.1939],[-38.3729,145.1926],[-38.3722,145.1865],[-38.3746,145.1868],[-38.3754,145.196],[-38.3829,145.2159],[-38.3987,145.2293],[-38.4045,145.2303],[-38.4057,145.2352],[-38.4094,145.2348],[-38.4075,145.2152],[-38.3985,145.1863],[-38.3971,145.1681],[-38.393,145.1523],[-38.3908,145.1323],[-38.394,145.1204],[-38.3954,145.1165],[-38.401,145.1121],[-38.4041,145.0937],[-38.4178,145.0778],[-38.4221,145.0766],[-38.4236,145.0788],[-38.4255,145.0764],[-38.4256,145.0663],[-38.4302,145.0577],[-38.4303,145.0506],[-38.4395,145.0455],[-38.4441,145.0399],[-38.4471,145.0408],[-38.4555,145.0329],[-38.4646,145.0325],[-38.4703,145.0271]],[[-38.5265,145.0979],[-38.5248,145.0994],[-38.5261,145.1002],[-38.5258,145.1021],[-38.5273,145.0997]],[[-38.3282,145.208],[-38.3268,145.2114],[-38.3291,145.2128],[-38.3331,145.2089]],[[-38.4027,145.2654],[-38.4023,145.2699],[-38.3987,145.2741],[-38.3909,145.2767],[-38.3844,145.2752],[-38.384,145.2707],[-38.3818,145.2753],[-38.3784,145.277],[-38.3731,145.2768],[-38.3646,145.2735],[-38.3574,145.2733],[-38.3334,145.2817],[-38.3211,145.2826],[-38.3081,145.2883],[-38.308,145.2922],[-38.3054,145.2954],[-38.3088,145.2974],[-38.3109,145.2954],[-38.3091,145.2975],[-38.3053,145.2958],[-38.3078,145.2921],[-38.3073,145.2869],[-38.3056,145.286],[-38.3034,145.2867],[-38.3029,145.29],[-38.3028,145.2865],[-38.2962,145.2873],[-38.2938,145.2915],[-38.2937,145.2891],[-38.286,145.2894],[-38.284,145.2909],[-38.2826,145.2951],[-38.2825,145.3041],[-38.2864,145.3146],[-38.2898,145.3197],[-38.2916,145.3288],[-38.2969,145.3343],[-38.3044,145.3384],[-38.3102,145.3475],[-38.3113,145.352],[-38.3141,145.3722],[-38.3136,145.3805],[-38.3066,145.4006],[-38.3045,145.4109],[-38.3079,145.4241],[-38.3069,145.4524],[-38.3116,145.4595],[-38.3177,145.4643],[-38.3249,145.4658],[-38.3323,145.4726],[-38.3388,145.4849],[-38.3394,145.4899],[-38.3513,145.5005],[-38.3527,145.5046],[-38.3538,145.499],[-38.3622,145.4804],[-38.3662,145.4771],[-38.3658,145.4598],[-38.3675,145.4515],[-38.3702,145.4477],[-38.3688,145.4432],[-38.3699,145.4404],[-38.369,145.4355],[-38.3717,145.426],[-38.37,145.4149],[-38.3727,145.405],[-38.3848,145.3902],[-38.3885,145.3892],[-38.3938,145.3929],[-38.3962,145.3925],[-38.3997,145.3846],[-38.4065,145.386],[-38.4071,145.3799],[-38.4098,145.378],[-38.4085,145.3755],[-38.4056,145.3751],[-38.4036,145.3711],[-38.4041,145.3684],[-38.4055,145.3679],[-38.4069,145.3604],[-38.409,145.3582],[-38.4115,145.359],[-38.4142,145.354],[-38.42,145.3524],[-38.4201,145.3488],[-38.4144,145.3427],[-38.4124,145.3376],[-38.4118,145.3338],[-38.4143,145.3294],[-38.4109,145.325],[-38.4127,145.3202],[-38.4114,145.3184],[-38.408,145.3183],[-38.4031,145.3137],[-38.4011,145.3091],[-38.4015,145.3048],[-38.3987,145.3013],[-38.3956,145.2882],[-38.3973,145.2826],[-38.3952,145.2764],[-38.398,145.2787],[-38.4032,145.28],[-38.4042,145.2819],[-38.4058,145.2767],[-38.4095,145.2729],[-38.4089,145.2706],[-38.4066,145.2713],[-38.4032,145.2696]],[[-38.4992,145.3329],[-38.4931,145.3378],[-38.4958,145.3372],[-38.4992,145.3418],[-38.5038,145.3431],[-38.5043,145.3455],[-38.5088,145.3462],[-38.5024,145.3401],[-38.502,145.3354]],[[-38.4167,145.3662],[-38.4118,145.3682],[-38.4114,145.3697],[-38.4147,145.3695],[-38.4177,145.3721],[-38.4191,145.3685]],[[-38.4001,145.3985],[-38.3987,145.3986],[-38.4002,145.4004]],[[-38.47,145.4041],[-38.4681,145.4058],[-38.4694,145.4097]]];
+const CTRL=[[-38.505,145.085,14.0,2.3,-0.818,1.5,0.7,60,-0.8,0.92,[2.5,2.4,2.5,2.7,3.0,3.3,3.5,3.6,3.5,3.3,3.0,2.7],[0.89,0.96,1.0,1.02,1.05,1.1,1.17,1.16,1.01,0.87,0.84,0.85]],[-38.516,145.37,6.0,1.9,-0.635,1.8,0.6,80,0.2,0.95,[3.3,3.2,3.3,3.6,4.0,4.4,4.7,4.8,4.7,4.4,4.0,3.6],[0.89,0.97,1.02,1.04,1.06,1.1,1.17,1.16,1.0,0.86,0.83,0.85]],[-38.376,145.228,8.0,1.3,-0.235,3.0,0.35,150,0.0,1.0,[4.5,4.3,4.5,5.0,5.9,6.8,7.6,7.9,7.6,6.8,5.9,5.0],[0.81,0.86,0.91,0.96,1.04,1.15,1.26,1.26,1.08,0.9,0.82,0.8]],[-38.3831,145.2707,3.2,0.34,1.457,3.0,0.12,250,0.25,1.03,[5.8,5.4,5.8,7.1,9.3,12.2,14.9,16.1,14.9,12.2,9.3,7.1],[0.99,1.08,1.21,1.15,0.95,0.82,0.78,0.75,0.77,0.83,0.86,0.92]],[-38.3118,145.2668,1.3,0.45,0.318,5.5,0.15,320,0.35,1.06,[9.8,9.1,9.8,11.7,15.0,19.3,23.2,24.8,23.2,19.3,15.0,11.7],[0.69,0.74,0.82,0.92,1.06,1.24,1.4,1.37,1.12,0.88,0.76,0.69]],[-38.268,145.252,2.5,0.5,0.899,6.0,0.1,300,0.9,1.18,[10.4,9.6,10.4,12.7,16.7,22.0,26.9,29.0,26.9,22.0,16.7,12.7],[0.59,0.64,0.75,0.9,1.11,1.35,1.55,1.52,1.22,0.89,0.71,0.62]],[-38.25,145.28,1.6,0.55,0.434,5.5,0.08,280,1.3,1.28,[9.1,8.6,9.1,11.0,14.1,18.1,21.7,23.3,21.7,18.1,14.1,11.0],[0.63,0.68,0.77,0.91,1.1,1.33,1.52,1.48,1.18,0.88,0.72,0.65]],[-38.46,145.135,12.0,2.1,-0.495,1.8,0.55,90,-0.55,0.95,[4.2,4.0,4.2,4.5,5.0,5.5,5.8,6.0,5.8,5.5,5.0,4.5],[0.89,0.96,1.0,1.02,1.05,1.1,1.17,1.16,1.01,0.87,0.84,0.85]],[-38.43,145.245,10.0,1.55,-0.301,2.4,0.3,120,-0.1,0.99,[4.1,3.8,4.1,5.0,6.5,8.5,10.4,11.3,10.4,8.5,6.5,5.0],[0.99,1.08,1.21,1.15,0.95,0.82,0.78,0.75,0.77,0.83,0.86,0.92]],[-38.445,145.305,11.0,1.5,-0.347,2.2,0.32,115,0.12,1.01,[3.5,3.2,3.5,4.3,5.6,7.3,8.9,9.7,8.9,7.3,5.6,4.3],[0.99,1.08,1.21,1.15,0.95,0.82,0.78,0.75,0.77,0.83,0.86,0.92]],[-38.48,145.335,8.0,1.4,-0.284,2.6,0.35,130,0.15,0.98,[4.9,4.8,4.9,5.4,6.0,6.6,7.1,7.2,7.1,6.6,6.0,5.4],[0.89,0.97,1.02,1.04,1.06,1.1,1.17,1.16,1.0,0.86,0.83,0.85]],[-38.46,145.38,5.0,0.9,0.049,4.0,0.25,200,0.45,1.06,[9.1,8.8,9.1,9.9,11.0,12.1,12.9,13.2,12.9,12.1,11.0,9.9],[0.89,0.97,1.02,1.04,1.06,1.1,1.17,1.16,1.0,0.86,0.83,0.85]],[-38.41,145.43,4.0,0.75,0.23,4.5,0.18,230,0.8,1.12,[10.7,10.4,10.7,11.7,13.0,14.3,15.3,15.6,15.3,14.3,13.0,11.7],[0.89,0.97,1.02,1.04,1.06,1.1,1.17,1.16,1.0,0.86,0.83,0.85]],[-38.305,145.2,4.5,0.7,0.204,4.5,0.12,240,0.55,1.1,[7.4,6.8,7.4,8.8,11.3,14.5,17.4,18.6,17.4,14.5,11.3,8.8],[0.69,0.74,0.82,0.92,1.06,1.24,1.4,1.37,1.12,0.88,0.76,0.69]],[-38.28,145.32,6.0,0.85,0.041,4.0,0.1,220,1.0,1.2,[7.3,6.9,7.3,8.8,11.3,14.5,17.4,18.7,17.4,14.5,11.3,8.8],[0.63,0.68,0.77,0.91,1.1,1.33,1.52,1.48,1.18,0.88,0.72,0.65]],[-38.225,145.375,1.5,0.45,0.556,5.5,0.06,280,1.7,1.35,[8.5,8.0,8.5,10.3,13.2,16.9,20.3,21.8,20.3,16.9,13.2,10.3],[0.63,0.68,0.77,0.91,1.1,1.33,1.52,1.48,1.18,0.88,0.72,0.65]],[-38.27,145.49,1.8,0.45,0.531,5.5,0.06,280,1.8,1.35,[8.5,8.0,8.5,10.3,13.2,16.9,20.3,21.8,20.3,16.9,13.2,10.3],[0.63,0.68,0.77,0.91,1.1,1.33,1.52,1.48,1.18,0.88,0.72,0.65]],[-38.29,145.37,2.0,0.55,0.505,5.0,0.1,270,1.1,1.22,[7.9,7.5,7.9,9.5,12.2,15.7,18.8,20.2,18.8,15.7,12.2,9.5],[0.63,0.68,0.77,0.91,1.1,1.33,1.52,1.48,1.18,0.88,0.72,0.65]],[-38.37,145.25,2.5,0.6,0.342,4.8,0.14,260,0.7,1.14,[9.0,8.6,9.0,10.0,11.8,13.6,15.2,15.8,15.2,13.6,11.8,10.0],[0.81,0.86,0.91,0.96,1.04,1.15,1.26,1.26,1.08,0.9,0.82,0.8]],[-38.4,145.17,3.0,0.45,0.447,4.5,0.2,240,0.2,1.02,[9.0,8.6,9.0,10.0,11.8,13.6,15.2,15.8,15.2,13.6,11.8,10.0],[0.81,0.86,0.91,0.96,1.04,1.15,1.26,1.26,1.08,0.9,0.82,0.8]],[-38.42,145.18,4.0,0.55,0.279,4.0,0.25,220,0.15,1.01,[9.0,8.6,9.0,10.0,11.8,13.6,15.2,15.8,15.2,13.6,11.8,10.0],[0.81,0.86,0.91,0.96,1.04,1.15,1.26,1.26,1.08,0.9,0.82,0.8]],[-38.4,145.125,3.0,0.5,0.38,4.2,0.25,230,0.05,1.0,[9.0,8.6,9.0,10.0,11.8,13.6,15.2,15.8,15.2,13.6,11.8,10.0],[0.81,0.86,0.91,0.96,1.04,1.15,1.26,1.26,1.08,0.9,0.82,0.8]]];
+</script>
+<script>
+const EPOCH=Date.UTC(2026,9,20,13,0,0);
+const G=9.81,RHO=1025.0,CD=0.0025,FW=0.02,TAUCR=0.10;
+const DREF=4.0,NN=0.60,QM=2.0,Q0=0.30,QK=0.55,TQ=30*24;
+const TIDE={Z0:1.733,c:[
+  {sp:28.9841042,a:0.890,g:257.40},
+  {sp:30.0000000,a:0.225,g:145.70},
+  {sp:15.0410686,a:0.229,g:140.90},
+  {sp:13.9430356,a:0.187,g:242.00}
+]};
+const AHD_OFFSET=1.69;
+const KLAT=111.32, KLON=KLAT*Math.cos(38.38*Math.PI/180);
+
+/* ---------- 几何 ---------- */
+function pip(lat,lon,ring){
+  let inside=false;
+  for(let i=0,j=ring.length-1;i<ring.length;j=i++){
+    const yi=ring[i][0],xi=ring[i][1],yj=ring[j][0],xj=ring[j][1];
+    if(((yi>lat)!==(yj>lat))&&(lon<(xj-xi)*(lat-yi)/(yj-yi)+xi)) inside=!inside;
+  }
+  return inside;
+}
+function inBay(lat,lon){
+  if(!pip(lat,lon,BAY[0])) return false;
+  for(let k=1;k<BAY.length;k++) if(pip(lat,lon,BAY[k])) return false;
+  return true;
+}
+function snapToWater(lat,lon){
+  if(inBay(lat,lon)) return [lat,lon];
+  for(let r=0.004;r<0.3;r+=0.004){
+    for(let a=0;a<360;a+=12){
+      const la=lat+r*Math.cos(a*Math.PI/180);
+      const lo=lon+r*Math.sin(a*Math.PI/180)/Math.cos(lat*Math.PI/180);
+      if(inBay(la,lo)) return [la,lo];
+    }
+  }
+  return [lat,lon];
+}
+function fetchAt(lat,lon){
+  const out=new Array(8).fill(0);
+  for(let i=0;i<8;i++){
+    const brg=i*45*Math.PI/180;
+    const dLat=Math.cos(brg), dLon=Math.sin(brg);
+    let d=0, la=lat, lo=lon;
+    while(d<50){
+      la+=dLat*0.25/KLAT; lo+=dLon*0.25/KLON; d+=0.25;
+      if(!inBay(la,lo)) break;
+    }
+    if(la<-38.50) d=50;
+    out[i]=Math.round(Math.min(d,50)*2)*500;
+  }
+  return out;
+}
+
+/* ---------- 空间参数场 ---------- */
+function fieldAt(lat,lon){
+  let wsum=0;
+  const ws=[];
+  for(let i=0;i<CTRL.length;i++){
+    const c=CTRL[i];
+    const dy=(lat-c[0])*KLAT, dx=(lon-c[1])*KLON;
+    const d2=dx*dx+dy*dy;
+    const w=1/(Math.pow(d2,1.4)+1e-4);
+    ws.push(w); wsum+=w;
+  }
+  let d0=0,kc=0,lm=0,bg=0,sw=0,cm=0,lag=0,amp=0;
+  const typ=new Array(12).fill(0), cor=new Array(12).fill(0);
+  for(let i=0;i<CTRL.length;i++){
+    const c=CTRL[i], w=ws[i]/wsum;
+    d0+=w*c[2]; kc+=w*c[3]; lm+=w*c[4]; bg+=w*c[5];
+    sw+=w*c[6]; cm+=w*c[7]; lag+=w*c[8]; amp+=w*c[9];
+    for(let m=0;m<12;m++){ typ[m]+=w*Math.log(c[10][m]); cor[m]+=w*Math.log(c[11][m]); }
+  }
+  return {lat,lon,d0,kc,M:Math.pow(10,lm),bg,swell:sw,Cmax:cm,lag,amp,
+    typ:typ.map(v=>Math.exp(v)), cor:cor.map(v=>Math.exp(v)),
+    fetch:fetchAt(lat,lon)};
+}
+
+/* ---------- 物理 ---------- */
+function tideRef(h){
+  let v=TIDE.Z0;
+  for(const k of TIDE.c) v+=k.a*Math.cos((k.sp*h-k.g)*Math.PI/180);
+  return v;
+}
+function tideAt(s,h){ return TIDE.Z0+s.amp*(tideRef(h-s.lag)-TIDE.Z0); }
+function tideRate(s,h){ return s.amp*(tideRef(h-s.lag+0.05)-tideRef(h-s.lag-0.05))/0.10; }
+function waveK(T,d){
+  const w=2*Math.PI/T;
+  let k=Math.max(w*w/G,1e-4);
+  for(let i=0;i<40;i++){
+    const th=Math.tanh(k*d), f=G*k*th-w*w, df=G*th+G*k*d*(1-th*th);
+    const nk=k-f/df;
+    if(!isFinite(nk)||nk<=0) break;
+    if(Math.abs(nk-k)<1e-10){k=nk;break;}
+    k=nk;
+  }
+  return k;
+}
+function ubFrom(Hs,T,d){
+  if(!(Hs>0.005)||!(T>0.4)||!(d>0.15)) return 0;
+  const k=waveK(T,d), sh=Math.sinh(Math.min(k*d,60));
+  if(!isFinite(sh)||sh<1e-9) return 0;
+  const ub=Math.PI*Hs/(T*sh);
+  return isFinite(ub)?Math.min(ub,4):0;
+}
+function smbWave(U,F,d){
+  if(!(U>0.8)||!(F>100)) return {Hs:0,T:0,ub:0};
+  let Hs=0.0016*(U*U/G)*Math.sqrt(G*F/(U*U));
+  let T=0.40*(U/G)*Math.pow(G*F/(U*U),1/3);
+  Hs=Math.min(Hs,0.55*d);
+  return {Hs,T,ub:ubFrom(Hs,T,d)};
+}
+function fetchFor(s,dir){ return s.fetch[Math.round((((dir%360)+360)%360)/45)%8]; }
+function mob(tau){ return Math.pow(Math.max(0,tau/TAUCR-1),NN); }
+
+function step(s,t,env){
+  const h=tideAt(s,t);
+  const d=Math.max(0.35,s.d0+(h-TIDE.Z0)*0.9);
+  const Uc=s.kc*Math.abs(tideRate(s,t));
+  const tc=RHO*CD*Uc*Uc;
+  const ws=smbWave(env.U,fetchFor(s,env.dir),d);
+  const HsSw=s.swell*env.HsOff;
+  const ubSw=s.swell*ubFrom(env.HsOff,env.TpOff,d);
+  const tw=RHO*FW*(ws.ub*ws.ub+ubSw*ubSw)/2;
+  const qf=Q0+QK*Math.pow(env.Q,QM);
+  const mt=mob(tc), mw=mob(tw);
+  let Ceq=s.bg+s.M*qf*(mt+mw*Math.exp(-d/DREF));
+  if(Ceq>s.Cmax) Ceq=s.Cmax;
+  return {h,d,Uc,tc,tw,tau:tc+tw,Ceq,ws,ub:ws.ub,HsEff:Math.sqrt(ws.Hs*ws.Hs+HsSw*HsSw),mt,mw,qf};
+}
+
+/* ---------- 状态 ---------- */
+const st={lat:-38.3831,lon:145.2707,site:null,ready:false,wx:null,Q:null,qt:null,busy:false};
+
+/* ---------- 取数 ---------- */
+function tstr(d){ return d.toISOString().slice(0,13)+':00'; }
+async function fetchJSON(url,ms){
+  const ac=new AbortController();
+  const tm=setTimeout(()=>ac.abort(),ms||30000);
+  try{
+    const r=await fetch(url,{cache:'no-store',signal:ac.signal});
+    if(!r.ok) throw new Error('HTTP '+r.status);
+    return await r.json();
+  }catch(e){
+    throw e.name==='AbortError'?new Error('请求超时'):e;
+  }finally{ clearTimeout(tm); }
+}
+
+async function loadQ(){
+  if(st.Q) return;
+  const nowD=new Date();
+  const dEnd=nowD.toISOString().slice(0,10);
+  const dStart=new Date(nowD.getTime()-95*864e5).toISOString().slice(0,10);
+  const a=await fetchJSON(`https://archive-api.open-meteo.com/v1/archive?latitude=-38.41&longitude=145.43&start_date=${dStart}&end_date=${dEnd}&hourly=wind_speed_10m,precipitation&wind_speed_unit=ms&timezone=UTC`);
+  const b=a.hourly, t=b.time.map(s=>new Date(s+':00Z').getTime());
+  const Qs=new Array(b.time.length);
+  let q=1.9;
+  for(let i=0;i<b.time.length;i++){
+    const r=b.precipitation[i], u=b.wind_speed_10m[i];
+    if(r==null||u==null){ Qs[i]=q; continue; }
+    const inst=r*12+Math.max(0,u-4)*0.8;
+    q=q+(inst-q)*(1-Math.exp(-1/TQ));
+    Qs[i]=q;
+  }
+  st.Q=Qs; st.qt=t;
+}
+
+async function loadData(){
+  if(st.busy) return;
+  st.busy=true;
+  setStatus('warn','获取数据…');
+  const {lat,lon}=st;
+  try{
+    const W='https://api.open-meteo.com/v1/forecast';
+    const MR='https://marine-api.open-meteo.com/v1/marine';
+    const [wx,mw]=await Promise.all([
+      fetchJSON(`${W}?latitude=${lat}&longitude=${lon}&hourly=wind_speed_10m,wind_direction_10m,wind_gusts_10m,precipitation&past_days=7&forecast_days=7&wind_speed_unit=ms&timezone=UTC`),
+      fetchJSON(`${MR}?latitude=${lat}&longitude=${lon}&hourly=wave_height,wave_period&past_days=7&forecast_days=7&timezone=UTC`),
+      loadQ()
+    ]);
+    st.wx={
+      time:wx.hourly.time.map(s=>new Date(s+':00Z').getTime()),
+      U:wx.hourly.wind_speed_10m.map(v=>v==null?0:v),
+      dir:wx.hourly.wind_direction_10m.map(v=>v==null?0:v),
+      gust:wx.hourly.wind_gusts_10m.map(v=>v==null?0:v),
+      rain:wx.hourly.precipitation.map(v=>v==null?0:v),
+      Hs:(mw.hourly.wave_height||[]).map(v=>v==null?0:v),
+      Tp:(mw.hourly.wave_period||[]).map(v=>v==null?10:v),
+      wt:(mw.hourly&&mw.hourly.time?mw.hourly.time:[]).map(s=>new Date(s+':00Z').getTime())
+    };
+    st.site=fieldAt(lat,lon);
+    st.ready=true;
+    document.getElementById('errbox').innerHTML='';
+    setStatus('','实时数据');
+    render();
+  }catch(e){
+    setStatus('err','取数失败');
+    document.getElementById('errbox').innerHTML=
+      `<div class="err">无法获取实时气象数据（${e.message}）。需要联网，并且不能被内置预览的 CSP 拦截——请用浏览器打开本页。</div>`;
+  }finally{ st.busy=false; }
+}
+
+/* ---------- 采样 ---------- */
+function sampleAt(arr,times,t){
+  if(!times.length) return 0;
+  const g=i=>{const v=arr[i];return (v==null||!isFinite(v))?0:v;};
+  if(t<=times[0]) return g(0);
+  if(t>=times[times.length-1]) return g(arr.length-1);
+  let lo=0,hi=times.length-1;
+  while(hi-lo>1){const mid=(lo+hi)>>1; if(times[mid]<=t) lo=mid; else hi=mid;}
+  const f=(t-times[lo])/(times[hi]-times[lo]);
+  return g(lo)+(g(hi)-g(lo))*f;
+}
+
+function buildSeries(s){
+  const w=st.wx, now=Date.now();
+  const t0=now-7*24*3600e3, t1=now+7*24*3600e3, dt=0.25;
+  const n=Math.round((t1-t0)/(dt*3600e3))+1;
+  const out=[]; let C=null;
+  for(let i=0;i<n;i++){
+    const ms=t0+i*dt*3600e3;
+    const env={
+      U:sampleAt(w.U,w.time,ms),
+      dir:sampleAt(w.dir,w.time,ms),
+      HsOff:sampleAt(w.Hs,w.wt.length?w.wt:w.time,ms),
+      TpOff:sampleAt(w.Tp,w.wt.length?w.wt:w.time,ms),
+      Q:sampleAt(st.Q,st.qt,ms)
+    };
+    const r=step(s,(ms-EPOCH)/3600e3,env);
+    if(C===null) C=r.Ceq;
+    const Ts=r.Ceq>C?0.75:2.40;
+    C=r.Ceq+(C-r.Ceq)*Math.exp(-dt/Ts);
+    out.push({ms,h:r.h,d:r.d,Uc:r.Uc,tc:r.tc,tw:r.tw,tau:r.tau,Hs:r.ws.Hs,HsEff:r.HsEff,
+      ub:r.ub,Q:env.Q,U:env.U,dir:env.dir,mt:r.mt,mw:r.mw,raw:C});
+  }
+  return out;
+}
+
+/* ---------- 格式化 ---------- */
+function fnum(v){ return v<10?(Math.round(v*10)/10).toFixed(1):Math.round(v).toString(); }
+function classify(v){
+  if(v<5) return {t:'清澈',c:'#33b5a5'};
+  if(v<15) return {t:'微浑',c:'#5fbf9a'};
+  if(v<40) return {t:'中等',c:'#e9c04a'};
+  if(v<80) return {t:'浑浊',c:'#e9954a'};
+  return {t:'很浑',c:'#e0574c'};
+}
+function mel(ms,opt){
+  return new Date(ms).toLocaleString('en-AU',Object.assign({timeZone:'Australia/Melbourne'},opt));
+}
+function hhmm(ms){ return mel(ms,{hour:'2-digit',minute:'2-digit',hour12:false}); }
+function compass(d){
+  const a=['北','东北','东','东南','南','西南','西','西北'];
+  return a[Math.round((((d%360)+360)%360)/45)%8];
+}
+function setStatus(kind,text){
+  document.getElementById('dot').className='dot'+(kind?' '+kind:'');
+  document.getElementById('statustext').textContent=text;
+}
+
+/* ---------- 表盘 ---------- */
+function renderGauge(v){
+  const svg=document.getElementById('gauge');
+  const cx=125,cy=126,R=92,sw=15;
+  const cl=classify(v), lo=1.5, hi=250;
+  const frac=Math.max(0,Math.min(1,Math.log10(Math.max(v,lo)/lo)/Math.log10(hi/lo)));
+  const a0=Math.PI*0.75, a1=Math.PI*2.25;
+  const pt=f=>[cx+R*Math.cos(a0+(a1-a0)*f), cy+R*Math.sin(a0+(a1-a0)*f)];
+  const [sx,sy]=pt(0), [ex,ey]=pt(1), [px,py]=pt(frac);
+  const path=`M ${sx.toFixed(1)} ${sy.toFixed(1)} A ${R} ${R} 0 1 1 ${ex.toFixed(1)} ${ey.toFixed(1)}`;
+  const len=Math.abs(a1-a0)*R;
+  svg.innerHTML=`
+    <defs><linearGradient id="gg" x1="0" y1="1" x2="1" y2="0">
+      <stop offset="0%" stop-color="#2a9d8f"/><stop offset="34%" stop-color="#6cc48d"/>
+      <stop offset="58%" stop-color="#e2bd4b"/><stop offset="78%" stop-color="#e9954a"/>
+      <stop offset="100%" stop-color="#e0574c"/></linearGradient></defs>
+    <path d="${path}" fill="none" stroke="#16232e" stroke-width="${sw}" stroke-linecap="round"/>
+    <path d="${path}" fill="none" stroke="url(#gg)" stroke-width="${sw}" stroke-linecap="round"
+      stroke-dasharray="${(len*frac).toFixed(1)} ${(len+90).toFixed(1)}" opacity=".95"/>
+    <circle cx="${px.toFixed(1)}" cy="${py.toFixed(1)}" r="5.5" fill="#0b1218" stroke="${cl.c}" stroke-width="2.3"/>
+    <text x="${cx}" y="${cy+4}" text-anchor="middle" fill="${cl.c}" font-size="42" font-weight="300"
+      style="font-variant-numeric:tabular-nums;letter-spacing:-1.5px">${fnum(v)}</text>
+    <text x="${cx}" y="${cy+22}" text-anchor="middle" fill="#5b7286" font-size="10">mg/L</text>
+    <text x="${cx}" y="${cy+50}" text-anchor="middle" fill="${cl.c}" font-size="12" opacity=".9" letter-spacing="1px">${cl.t}</text>`;
+}
+
+/* ---------- 图表 ---------- */
+let peakHTML='';
+function renderChart(pts,t0,t1){
+  const svg=document.getElementById('chart');
+  const W=900,L=48,R=44,T1=22,B1=188,T2=214,B2=280;
+  const win=pts.filter(p=>p.ms>=t0&&p.ms<=t1);
+  if(win.length<2) return;
+  const vmax=Math.max(6,Math.ceil(Math.max(...win.map(p=>p.tss))*1.15/5)*5);
+  const hs=win.map(p=>p.h), hmin=Math.min(...hs), hmax=Math.max(...hs);
+  const X=ms=>L+(ms-t0)/(t1-t0)*(W-L-R);
+  const Y=v=>B1-Math.sqrt(Math.max(0,v)/vmax)*(B1-T1);
+  const Yh=h=>B2-((h-hmin)/Math.max(0.15,hmax-hmin))*(B2-T2);
+  const now=Date.now();
+
+  const tickSet=vmax<=10?[0,2,5,10]:vmax<=30?[0,5,10,25]:vmax<=80?[0,5,25,50]
+    :vmax<=200?[0,5,25,100]:[0,5,25,100,250];
+  let grid='';
+  tickSet.forEach(v=>{
+    grid+=`<line x1="${L}" y1="${Y(v).toFixed(1)}" x2="${W-R}" y2="${Y(v).toFixed(1)}" stroke="#16222c" stroke-width="1"/>`;
+    grid+=`<text x="${L-8}" y="${(Y(v)+3.5).toFixed(1)}" text-anchor="end" fill="#4d6274" font-size="9">${v}</text>`;
+  });
+
+  let ticks='';
+  const lh=parseInt(mel(t0,{hour:'2-digit',hour12:false}),10);
+  let ms0=t0+((24-lh)%24)*3600e3, first=true;
+  for(let ms=ms0;ms<=t1;ms+=24*3600e3){
+    const x=X(ms), day=mel(ms,{day:'numeric'});
+    const lbl=(first||day==='1')?mel(ms,{month:'numeric',day:'numeric'}):day;
+    ticks+=`<line x1="${x.toFixed(1)}" y1="${T1}" x2="${x.toFixed(1)}" y2="${B2}" stroke="#141f28" stroke-width="1"/>`;
+    ticks+=`<text x="${x.toFixed(1)}" y="${B2+16}" text-anchor="middle" fill="#4d6274" font-size="9">${lbl}</text>`;
+    first=false;
+  }
+
+  const area='M '+X(win[0].ms).toFixed(1)+' '+Y(win[0].tss).toFixed(1)
+    +win.map(p=>' L '+X(p.ms).toFixed(1)+' '+Y(p.tss).toFixed(1)).join('')
+    +' L '+X(win[win.length-1].ms).toFixed(1)+' '+B1+' L '+X(win[0].ms).toFixed(1)+' '+B1+' Z';
+  const line='M '+win.map(p=>X(p.ms).toFixed(1)+' '+Y(p.tss).toFixed(1)).join(' L ');
+  const tl='M '+win.map(p=>X(p.ms).toFixed(1)+' '+Yh(p.h).toFixed(1)).join(' L ');
+  const xn=X(now);
+  const cur=(win.find(p=>Math.abs(p.ms-now)<2e6)||win[0]);
+  const cl=classify(cur.tss);
+  let pk=null;
+  win.forEach(p=>{ if(p.ms>now&&(!pk||p.tss>pk.tss)) pk=p; });
+
+  svg.innerHTML=`
+    <defs><linearGradient id="ar" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="${cl.c}" stop-opacity=".38"/>
+      <stop offset="100%" stop-color="${cl.c}" stop-opacity=".01"/></linearGradient></defs>
+    ${grid}${ticks}
+    <line x1="${L}" y1="${B1}" x2="${W-R}" y2="${B1}" stroke="#243340" stroke-width="1"/>
+    <path d="${area}" fill="url(#ar)"/>
+    <path d="${line}" fill="none" stroke="${cl.c}" stroke-width="1.5" stroke-linejoin="round"/>
+    ${pk?`<circle cx="${X(pk.ms).toFixed(1)}" cy="${Y(pk.tss).toFixed(1)}" r="3" fill="#0b1218"
+      stroke="${classify(pk.tss).c}" stroke-width="1.7"/>`:''}
+    <line x1="${L}" y1="${B2}" x2="${W-R}" y2="${B2}" stroke="#1b2a35" stroke-width="1"/>
+    <path d="${tl}" fill="none" stroke="#4a90d9" stroke-width="1.15" opacity=".75"/>
+    <line x1="${xn.toFixed(1)}" y1="${T1-6}" x2="${xn.toFixed(1)}" y2="${B2}" stroke="#8ba4b8"
+      stroke-width="1" stroke-dasharray="3 3" opacity=".45"/>
+    <text x="${xn.toFixed(1)}" y="${T1-9}" text-anchor="middle" fill="#7f96a8" font-size="8.5">现在</text>
+    <text x="${W-R+7}" y="${T2+4}" fill="#3f6f9e" font-size="8.5">${hmax.toFixed(1)}</text>
+    <text x="${W-R+7}" y="${B2+4}" fill="#3f6f9e" font-size="8.5">${hmin.toFixed(1)}</text>
+    <g id="hover" style="display:none">
+      <line id="hvl" y1="${T1}" y2="${B2}" stroke="#9fb6c8" stroke-width="1" stroke-dasharray="2 3" opacity=".7"/>
+      <circle id="hvc" r="3.4" fill="#fff"/><circle id="hvh" r="2.8" fill="#4a90d9"/></g>
+    <rect id="hit" x="${L}" y="${T1}" width="${W-L-R}" height="${B2-T1}" fill="transparent" style="cursor:crosshair"/>`;
+
+  const hit=svg.querySelector('#hit'), hov=svg.querySelector('#hover'),
+        hvl=svg.querySelector('#hvl'), hvc=svg.querySelector('#hvc'), hvh=svg.querySelector('#hvh');
+  const tip=document.getElementById('peakline');
+  hit.addEventListener('mousemove',e=>{
+    const rect=svg.getBoundingClientRect();
+    const x=(e.clientX-rect.left)/rect.width*W;
+    const m=t0+(x-L)/(W-L-R)*(t1-t0);
+    let best=win[0],bd=1e18;
+    win.forEach(p=>{const dd=Math.abs(p.ms-m); if(dd<bd){bd=dd;best=p;}});
+    hov.style.display='';
+    hvl.setAttribute('x1',X(best.ms)); hvl.setAttribute('x2',X(best.ms));
+    hvc.setAttribute('cx',X(best.ms)); hvc.setAttribute('cy',Y(best.tss));
+    hvc.setAttribute('fill',classify(best.tss).c);
+    hvh.setAttribute('cx',X(best.ms)); hvh.setAttribute('cy',Yh(best.h));
+    tip.innerHTML=`<b>${mel(best.ms,{month:'numeric',day:'numeric'})} ${hhmm(best.ms)}</b> · 悬沙 <b>${fnum(best.tss)}</b> mg/L · 潮位 ${(best.h-AHD_OFFSET).toFixed(2)} m · 风 ${best.U.toFixed(1)} m/s`;
+  });
+  hit.addEventListener('mouseleave',()=>{ hov.style.display='none'; tip.innerHTML=peakHTML; });
+}
+
+/* ---------- 渲染 ---------- */
+function render(){
+  if(!st.ready) return;
+  const s=st.site, now=Date.now();
+  const pts=buildSeries(s);
+  const mo=parseInt(mel(now,{month:'numeric'}),10)-1;
+  const c=s.cor[mo];
+  pts.forEach(p=>{ p.tss=Math.max(0.3,Math.min(s.Cmax,p.raw*c)); });
+
+  let cur=pts[0];
+  pts.forEach(p=>{ if(Math.abs(p.ms-now)<Math.abs(cur.ms-now)) cur=p; });
+
+  document.getElementById('subline').textContent=
+    `${s.lat.toFixed(4)}, ${s.lon.toFixed(4)} · ${mel(now,{month:'numeric',day:'numeric'})} ${hhmm(now)}`;
+
+  renderGauge(cur.tss);
+  document.getElementById('m-ntu').textContent=fnum(cur.tss/1.3);
+  const kd=0.55+0.035*cur.tss;
+  document.getElementById('m-sd').textContent=(1.7/kd).toFixed(1);
+  const typNow=s.typ[mo];
+  document.getElementById('m-typ').textContent=fnum(typNow);
+  const rel=cur.tss/typNow;
+  const relTxt=rel<0.6?'明显偏清':rel<0.9?'偏清':rel<1.3?'接近常年':rel<2?'偏浑':'明显偏浑';
+  document.getElementById('rel').innerHTML=`当前是本月典型的 <b>${(rel*100).toFixed(0)}%</b>（${relTxt}）`;
+
+  const t0=now-7*24*3600e3, t1=now+7*24*3600e3;
+  renderChart(pts,t0,t1);
+
+  const fwd=pts.filter(p=>p.ms>now&&p.ms<=t1);
+  if(fwd.length){
+    let pk=fwd[0]; fwd.forEach(p=>{if(p.tss>pk.tss)pk=p;});
+    const dh=(pk.ms-now)/3600e3;
+    const when=dh<1?'约 1 小时内':dh<48?(dh.toFixed(0)+' 小时后'):((dh/24).toFixed(1)+' 天后');
+    peakHTML=`未来 7 天最浑 <b>${fnum(pk.tss)}</b> mg/L，${when}（${mel(pk.ms,{month:'numeric',day:'numeric'})} ${hhmm(pk.ms)}）`;
+    document.getElementById('peakline').innerHTML=peakHTML;
+  }
+
+  const gust=sampleAt(st.wx.gust,st.wx.time,now);
+  let rain48=0, rain7=0;
+  for(let i=0;i<st.wx.time.length;i++){
+    const d=now-st.wx.time[i];
+    if(d>=0&&d<48*3600e3) rain48+=st.wx.rain[i];
+    if(d>=0&&d<7*24*3600e3) rain7+=st.wx.rain[i];
+  }
+  const rate=tideRate(s,(now-EPOCH)/3600e3);
+  const trend=rate>0.03?'涨':rate<-0.03?'落':'平';
+  document.getElementById('strip').innerHTML=
+    `<span>风 <b>${cur.U.toFixed(1)}</b> m/s ${compass(cur.dir)}（阵风 ${gust.toFixed(1)}）</span>`+
+    `<span>浪 <b>${cur.HsEff.toFixed(2)}</b> m</span>`+
+    `<span>潮位 <b>${(cur.h-AHD_OFFSET).toFixed(2)}</b> m · ${trend} ${Math.abs(rate).toFixed(2)} m/h</span>`+
+    `<span>水深 <b>${cur.d.toFixed(1)}</b> m</span>`+
+    `<span>48h 雨 <b>${rain48.toFixed(1)}</b> mm</span>`+
+    `<span>细泥存量 <b>${cur.Q.toFixed(2)}</b></span>`;
+}
+
+/* ---------- 地图 ---------- */
+let map=null, marker=null;
+function initMap(lat,lon){
+  if(typeof L==='undefined'){
+    document.getElementById('map').innerHTML=
+      '<div style="padding:16px;font-size:12px;color:#7b90a3;line-height:1.7">地图需要联网加载 Leaflet。<br>页面其余功能不受影响。</div>';
+    return;
+  }
+  map=L.map('map',{zoomControl:true,attributionControl:false}).setView([lat,lon],11);
+  L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',{maxZoom:16}).addTo(map);
+  L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/Reference/World_Boundaries_and_Places/MapServer/tile/{z}/{y}/{x}',{maxZoom:16,opacity:.9}).addTo(map);
+  marker=L.circleMarker([lat,lon],{radius:6,color:'#fff',weight:2,fillColor:'#33b5a5',fillOpacity:1}).addTo(map);
+  map.on('click',e=>setPoint(e.latlng.lat,e.latlng.lng));
+  setTimeout(()=>map.invalidateSize(),200);
+}
+let timer=null;
+function readHash(){
+  const m=(location.hash||'').match(/^#(-?\d+\.?\d*),(-?\d+\.?\d*)$/);
+  if(!m) return null;
+  const la=parseFloat(m[1]), lo=parseFloat(m[2]);
+  return (isFinite(la)&&isFinite(lo)&&la<-37.9&&la>-38.8&&lo>144.9&&lo<145.7)?[la,lo]:null;
+}
+function setPoint(lat,lon){
+  const [la,lo]=snapToWater(lat,lon);
+  st.lat=la; st.lon=lo;
+  try{ localStorage.setItem('wp_point',JSON.stringify([la,lo])); }catch(e){}
+  try{ history.replaceState(null,'','#'+la.toFixed(4)+','+lo.toFixed(4)); }catch(e){}
+  if(marker) marker.setLatLng([la,lo]);
+  st.ready=false;
+  clearTimeout(timer);
+  timer=setTimeout(()=>loadData(),350);
+}
+
+/* ---------- 启动 ---------- */
+document.getElementById('refresh').onclick=()=>loadData();
+(function(){
+  let p=readHash();
+  if(!p){
+    p=[-38.3831,145.2707];
+    try{
+      const v=JSON.parse(localStorage.getItem('wp_point'));
+      if(Array.isArray(v)&&v.length===2) p=v;
+    }catch(e){}
+  }
+  st.lat=p[0]; st.lon=p[1];
+  initMap(p[0],p[1]);
+  loadData();
+})();
+setInterval(()=>{ if(st.ready) render(); },15*60*1000);
+</script>
+</body>
+</html>
