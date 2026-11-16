@@ -41,11 +41,27 @@ background:rgba(8,12,17,.8);border-radius:6px;padding:3px 8px;pointer-events:non
 .m .v em{font-style:normal;font-size:9.5px;color:var(--dim);margin-left:2px}
 .rel{font-size:11.5px;color:var(--mut);margin-top:9px;text-align:center}
 .rel b{color:var(--tx);font-weight:500}
-.chartcard{padding:13px 16px 9px;margin-bottom:13px}
+.chartcard{position:relative;padding:13px 16px 9px;margin-bottom:13px}
 .chead{display:flex;justify-content:space-between;align-items:baseline;margin-bottom:2px;flex-wrap:wrap;gap:8px}
 .chead h2{margin:0;font-size:12.5px;font-weight:500;letter-spacing:.3px}
 .legend{display:flex;gap:13px;font-size:10.5px;color:var(--dim)}
 .legend i{display:inline-block;width:13px;height:3px;border-radius:2px;vertical-align:middle;margin-right:4px}
+.ctools{display:flex;align-items:center;gap:14px;flex-wrap:wrap}
+.seg{display:inline-flex;border:1px solid var(--line);border-radius:7px;overflow:hidden}
+.seg button{background:transparent;border:0;color:var(--dim);font-size:11px;padding:4px 10px;
+cursor:pointer;font-family:inherit;transition:.15s;white-space:nowrap}
+.seg button+button{border-left:1px solid var(--line)}
+.seg button:hover{color:var(--mut)}
+.seg button.on{background:#1d3040;color:#bcd4e4}
+.tip{position:absolute;left:0;top:0;pointer-events:none;opacity:0;transition:opacity .12s;
+background:#0c141b;border:1px solid #26343f;border-radius:8px;padding:7px 10px;
+font-size:11px;line-height:1.55;color:var(--mut);white-space:nowrap;z-index:30;
+box-shadow:0 6px 18px rgba(0,0,0,.45)}
+.tip.on{opacity:1}
+.tip .d{color:var(--tx);font-weight:500;font-size:11.5px;margin-bottom:2px;letter-spacing:.2px}
+.tip b{color:var(--tx);font-weight:500;font-variant-numeric:tabular-nums}
+@media(max-width:620px){.tip{white-space:normal;max-width:186px;line-height:1.5}
+.chead{align-items:flex-start}.ctools{gap:9px}}
 #chart{width:100%;display:block}
 .peak{font-size:11.5px;color:var(--mut);margin-top:3px;min-height:17px}
 .peak b{color:var(--tx);font-weight:500}
@@ -93,13 +109,19 @@ padding:9px 13px;font-size:12px;margin-bottom:12px}
   <section class="card chartcard">
     <div class="chead">
       <h2 id="chartTitle">past 7 days → next 7 days</h2>
-      <div class="legend">
-        <span><i style="background:#33b5a5"></i><span id="lg-tss">Suspended sediment (mg/L)</span></span>
-        <span><i style="background:#4a90d9"></i><span id="lg-tide">Tide (m)</span></span>
+      <div class="ctools">
+        <div class="legend">
+          <span><i style="background:#33b5a5"></i><span id="lg-tss">Suspended sediment (mg/L)</span></span>
+          <span><i style="background:#4a90d9"></i><span id="lg-tide">Tide (m)</span></span>
+        </div>
+        <span class="seg" id="seg">
+          <button data-r="24h">24 h</button><button data-r="7d" class="on">7 days</button><button data-r="14d">14 days</button>
+        </span>
       </div>
     </div>
     <svg id="chart" viewBox="0 0 900 300"></svg>
     <div class="peak" id="peakline"></div>
+    <div class="tip" id="tip"></div>
   </section>
 
   <section class="card strip" id="strip"></section>
@@ -138,7 +160,9 @@ zh:{
   refresh:'刷新', maphint:'点击地图选点',
   gtag:'当前悬沙浓度',
   k_ntu:'浊度', k_sd:'透明度', k_typ:'本月典型',
-  chart:'过去 7 天 → 未来 7 天',
+  rangeBtn:{'24h':'24 小时','7d':'7 天','14d':'14 天'},
+  rangeTitle:{'24h':'过去 12 小时 → 未来 12 小时','7d':'过去 3 天 → 未来 4 天','14d':'过去 7 天 → 未来 7 天'},
+  future:{'24h':'12 小时','7d':'4 天','14d':'7 天'},
   lg_tss:'悬沙 TSS（mg/L）', lg_tide:'潮位（m）',
   foot1:'数据 Open-Meteo（ECMWF · ERA5 · 波浪模型）· 潮汐调和常数标定自 Stony Point 潮汐表',
   foot2:'方法与可信度边界',
@@ -147,10 +171,10 @@ zh:{
   clr:['清澈','微浑','中等','浑浊','很浑'],
   rel:['明显偏清','偏清','接近常年','偏浑','明显偏浑'],
   relLine:(p,r)=>`当前是本月典型的 <b>${p}%</b>（${r}）`,
-  peakLine:(v,w,d)=>`未来 7 天最浑 <b>${v}</b> mg/L，${w}（${d}）`,
+  peakLine:(f,v,w,d)=>`未来 ${f}最浑 <b>${v}</b> mg/L，${w}（${d}）`,
   withinHour:'约 1 小时内', hoursLater:h=>`${h} 小时后`, daysLater:d=>`${d} 天后`,
   now:'现在',
-  tip:(d,v,h,u)=>`<b>${d}</b> · 悬沙 <b>${v}</b> mg/L · 潮位 ${h} m · 风 ${u} m/s`,
+  tip:(d,v,h,u)=>`<div class="d">${d}</div>悬沙 <b>${v}</b> mg/L · 潮位 ${h} m · 风 ${u} m/s`,
   wind:(u,c,g)=>`风 <b>${u}</b> m/s ${c}（阵风 ${g}）`,
   wave:h=>`浪 <b>${h}</b> m`,
   tide:(h,tr,r)=>`潮位 <b>${h}</b> m · ${tr} ${r} m/h`,
@@ -170,7 +194,9 @@ en:{
   refresh:'Refresh', maphint:'click the map to pick a spot',
   gtag:'suspended sediment',
   k_ntu:'Turbidity', k_sd:'Clarity', k_typ:'Monthly typical',
-  chart:'past 7 days → next 7 days',
+  rangeBtn:{'24h':'24 h','7d':'7 days','14d':'14 days'},
+  rangeTitle:{'24h':'past 12 h → next 12 h','7d':'past 3 days → next 4 days','14d':'past 7 days → next 7 days'},
+  future:{'24h':'12 h','7d':'4 days','14d':'7 days'},
   lg_tss:'Suspended sediment (mg/L)', lg_tide:'Tide (m)',
   foot1:'Data: Open-Meteo (ECMWF · ERA5 · wave model) · tidal harmonics calibrated to Stony Point tide tables',
   foot2:'Methods & limitations',
@@ -179,10 +205,10 @@ en:{
   clr:['Clear','Slightly turbid','Moderate','Turbid','Very turbid'],
   rel:['much clearer','clearer','about normal','more turbid','much more turbid'],
   relLine:(p,r)=>`<b>${p}%</b> of this month's typical (${r})`,
-  peakLine:(v,w,d)=>`Peakiest in 7 days <b>${v}</b> mg/L, ${w} (${d})`,
+  peakLine:(f,v,w,d)=>`Peak in the next ${f}: <b>${v}</b> mg/L, ${w} (${d})`,
   withinHour:'within the hour', hoursLater:h=>`in ${h} h`, daysLater:d=>`in ${d} days`,
   now:'now',
-  tip:(d,v,h,u)=>`<b>${d}</b> · sediment <b>${v}</b> mg/L · tide ${h} m · wind ${u} m/s`,
+  tip:(d,v,h,u)=>`<div class="d">${d}</div>sediment <b>${v}</b> mg/L · tide ${h} m · wind ${u} m/s`,
   wind:(u,c,g)=>`Wind <b>${u}</b> m/s ${c} (gust ${g})`,
   wave:h=>`Wave <b>${h}</b> m`,
   tide:(h,tr,r)=>`Tide <b>${h}</b> m · ${tr} ${r} m/h`,
@@ -204,7 +230,11 @@ function applyStatic(){
   set('h1text',T.h1); set('subline',T.sub0); set('statustext',T.connecting);
   set('refresh',T.refresh); set('maphint',T.maphint); set('gtag',T.gtag);
   set('k-ntu',T.k_ntu); set('k-sd',T.k_sd); set('k-typ',T.k_typ);
-  set('chartTitle',T.chart); set('lg-tss',T.lg_tss); set('lg-tide',T.lg_tide);
+  set('chartTitle',T.rangeTitle[st.range]); set('lg-tss',T.lg_tss); set('lg-tide',T.lg_tide);
+  document.querySelectorAll('#seg button').forEach(b=>{
+    b.textContent=T.rangeBtn[b.dataset.r];
+    b.classList.toggle('on',b.dataset.r===st.range);
+  });
   set('foot1',T.foot1); set('foot2',T.foot2);
 }
 
@@ -340,7 +370,7 @@ function step(s,t,env){
 }
 
 /* ---------- state ---------- */
-const st={lat:-38.3831,lon:145.2707,site:null,ready:false,wx:null,Q:null,qt:null,busy:false};
+const st={lat:-38.3831,lon:145.2707,range:'7d',site:null,ready:false,wx:null,Q:null,qt:null,busy:false};
 
 /* ---------- data ---------- */
 async function fetchJSON(url,ms){
@@ -498,10 +528,17 @@ function renderGauge(v){
 }
 
 /* ---------- chart ---------- */
+const RANGES={'24h':{back:0.5,fwd:0.5},'7d':{back:3,fwd:4},'14d':{back:7,fwd:7}};
+try{ const _r=new URLSearchParams(location.search).get('r'); if(_r&&RANGES[_r]) st.range=_r; }catch(e){}
 let peakHTML='';
+
 function renderChart(pts,t0,t1){
   const svg=document.getElementById('chart');
-  const W=900,L=48,R=44,T1=22,B1=188,T2=214,B2=280;
+  const nar=(svg.clientWidth||900)<560;
+  const W=nar?440:900, L=nar?32:48, R=nar?30:44;
+  const T1=nar?24:22, B1=nar?174:188, T2=nar?202:214, B2=nar?264:280;
+  const VH=nar?302:314, FT=nar?12:9, FN=nar?11.5:8.5;
+  svg.setAttribute('viewBox','0 0 '+W+' '+VH);
   const win=pts.filter(p=>p.ms>=t0&&p.ms<=t1);
   if(win.length<2) return;
   const vmax=Math.max(6,Math.ceil(Math.max(...win.map(p=>p.tss))*1.15/5)*5);
@@ -516,19 +553,36 @@ function renderChart(pts,t0,t1){
   let grid='';
   tickSet.forEach(v=>{
     grid+=`<line x1="${L}" y1="${Y(v).toFixed(1)}" x2="${W-R}" y2="${Y(v).toFixed(1)}" stroke="#16222c" stroke-width="1"/>`;
-    grid+=`<text x="${L-8}" y="${(Y(v)+3.5).toFixed(1)}" text-anchor="end" fill="#4d6274" font-size="9">${v}</text>`;
+    grid+=`<text x="${L-8}" y="${(Y(v)+3.5).toFixed(1)}" text-anchor="end" fill="#4d6274" font-size="${FT}">${v}</text>`;
   });
 
-  let ticks='';
-  const lh=parseInt(mel(t0,{hour:'2-digit',hour12:false}),10);
-  const ms0=t0+((24-lh)%24)*3600e3;
-  let first=true;
-  for(let ms=ms0;ms<=t1;ms+=24*3600e3){
-    const x=X(ms), dp=dparts(ms);
-    const lbl=(first||dp[0]===1)?T.month(dp[1]):String(dp[0]);
-    ticks+=`<line x1="${x.toFixed(1)}" y1="${T1}" x2="${x.toFixed(1)}" y2="${B2}" stroke="#141f28" stroke-width="1"/>`;
-    ticks+=`<text x="${x.toFixed(1)}" y="${B2+16}" text-anchor="middle" fill="#4d6274" font-size="9">${lbl}</text>`;
-    first=false;
+  let tg='', tk='';
+  const spanH=(t1-t0)/3600e3;
+  if(spanH<=30){
+    const stp=(nar?6:3)*3600e3;
+    const d0=new Date(t0);
+    const off=(((parseInt(mel(t0,{hour:'2-digit',hour12:false}),10)-d0.getUTCHours())+24)%24)*3600e3;
+    for(let ms=Math.ceil((t0+off)/stp)*stp-off;ms<=t1;ms+=stp){
+      const x=X(ms), hm=hhmm(ms), mid=hm.slice(0,2)==='00';
+      tg+=`<line x1="${x.toFixed(1)}" y1="${T1}" x2="${x.toFixed(1)}" y2="${B2}" stroke="${mid?'#1a2833':'#121d26'}" stroke-width="1"/>`;
+      tk+=`<text x="${x.toFixed(1)}" y="${B2+15}" text-anchor="middle" fill="${mid?'#6d8598':'#4d6274'}" font-size="${FT}">${hm}</text>`;
+      if(mid){
+        const dp=dparts(ms);
+        tk+=`<text x="${x.toFixed(1)}" y="${B2+26}" text-anchor="middle" fill="#42596b" font-size="${FN}">${T.date(dp[1],dp[0])}</text>`;
+      }
+    }
+  }else{
+    const lh=parseInt(mel(t0,{hour:'2-digit',hour12:false}),10);
+    const ms0=t0+((24-lh)%24)*3600e3;
+    const dst=(nar&&spanH>240)?2:1;
+    let first=true;
+    for(let ms=ms0;ms<=t1;ms+=24*3600e3*dst){
+      const x=X(ms), dp=dparts(ms);
+      const lbl=(first||dp[0]===1)?T.date(dp[1],dp[0]):String(dp[0]);
+      tg+=`<line x1="${x.toFixed(1)}" y1="${T1}" x2="${x.toFixed(1)}" y2="${B2}" stroke="#141f28" stroke-width="1"/>`;
+      tk+=`<text x="${x.toFixed(1)}" y="${B2+16}" text-anchor="middle" fill="#4d6274" font-size="${FT}">${lbl}</text>`;
+      first=false;
+    }
   }
 
   const area='M '+X(win[0].ms).toFixed(1)+' '+Y(win[0].tss).toFixed(1)
@@ -546,7 +600,9 @@ function renderChart(pts,t0,t1){
     <defs><linearGradient id="ar" x1="0" y1="0" x2="0" y2="1">
       <stop offset="0%" stop-color="${cl.c}" stop-opacity=".38"/>
       <stop offset="100%" stop-color="${cl.c}" stop-opacity=".01"/></linearGradient></defs>
-    ${grid}${ticks}
+    ${grid}${tg}<g id="tlab">${tk}</g>
+    <rect x="${Math.max(L,xn).toFixed(1)}" y="${T1}" width="${(W-R-Math.max(L,xn)).toFixed(1)}"
+      height="${B2-T1}" fill="#7fb6e0" opacity=".032"/>
     <line x1="${L}" y1="${B1}" x2="${W-R}" y2="${B1}" stroke="#243340" stroke-width="1"/>
     <path d="${area}" fill="url(#ar)"/>
     <path d="${line}" fill="none" stroke="${cl.c}" stroke-width="1.5" stroke-linejoin="round"/>
@@ -556,32 +612,60 @@ function renderChart(pts,t0,t1){
     <path d="${tl}" fill="none" stroke="#4a90d9" stroke-width="1.15" opacity=".75"/>
     <line x1="${xn.toFixed(1)}" y1="${T1-6}" x2="${xn.toFixed(1)}" y2="${B2}" stroke="#8ba4b8"
       stroke-width="1" stroke-dasharray="3 3" opacity=".45"/>
-    <text x="${xn.toFixed(1)}" y="${T1-9}" text-anchor="middle" fill="#7f96a8" font-size="8.5">${T.now}</text>
-    <text x="${W-R+7}" y="${T2+4}" fill="#3f6f9e" font-size="8.5">${hmax.toFixed(1)}</text>
-    <text x="${W-R+7}" y="${B2+4}" fill="#3f6f9e" font-size="8.5">${hmin.toFixed(1)}</text>
+    <text x="${xn.toFixed(1)}" y="${T1-9}" text-anchor="middle" fill="#7f96a8" font-size="${FN}">${T.now}</text>
+    <text x="${W-R+7}" y="${T2+4}" fill="#3f6f9e" font-size="${FN}">${hmax.toFixed(1)}</text>
+    <text x="${W-R+7}" y="${B2+4}" fill="#3f6f9e" font-size="${FN}">${hmin.toFixed(1)}</text>
     <g id="hover" style="display:none">
       <line id="hvl" y1="${T1}" y2="${B2}" stroke="#9fb6c8" stroke-width="1" stroke-dasharray="2 3" opacity=".7"/>
-      <circle id="hvc" r="3.4" fill="#fff"/><circle id="hvh" r="2.8" fill="#4a90d9"/></g>
+      <circle id="hvc" r="${nar?4.6:3.4}" fill="#fff"/><circle id="hvh" r="${nar?3.8:2.8}" fill="#4a90d9"/>
+      <g id="hvlab"><rect id="hvbg" y="${B2+3}" height="${nar?18:14}" rx="3.5" fill="#22323f"/>
+      <text id="hvxt" y="${B2+(nar?16:14.5)}" text-anchor="middle" fill="#d3e4f2" font-size="${FT}"></text></g></g>
     <rect id="hit" x="${L}" y="${T1}" width="${W-L-R}" height="${B2-T1}" fill="transparent" style="cursor:crosshair"/>`;
 
   const hit=svg.querySelector('#hit'), hov=svg.querySelector('#hover'),
-        hvl=svg.querySelector('#hvl'), hvc=svg.querySelector('#hvc'), hvh=svg.querySelector('#hvh');
-  const tip=document.getElementById('peakline');
-  hit.addEventListener('mousemove',e=>{
+        hvl=svg.querySelector('#hvl'), hvc=svg.querySelector('#hvc'), hvh=svg.querySelector('#hvh'),
+        hvbg=svg.querySelector('#hvbg'), hvxt=svg.querySelector('#hvxt'), tlab=svg.querySelector('#tlab');
+  const tipEl=document.getElementById('tip'), card=svg.parentElement;
+
+  function hide(){ hov.style.display='none'; tipEl.classList.remove('on'); tlab.style.opacity=''; }
+
+  function at(cx,cy){
     const rect=svg.getBoundingClientRect();
-    const x=(e.clientX-rect.left)/rect.width*W;
+    if(!rect.width||!rect.height) return;
+    const x=Math.min(Math.max((cx-rect.left)/rect.width*W,L),W-R);
     const m=t0+(x-L)/(W-L-R)*(t1-t0);
     let best=win[0],bd=1e18;
-    win.forEach(p=>{const dd=Math.abs(p.ms-m); if(dd<bd){bd=dd;best=p;}});
+    for(let i=0;i<win.length;i++){ const dd=Math.abs(win[i].ms-m); if(dd<bd){ bd=dd; best=win[i]; } }
+    const px=X(best.ms), py=Y(best.tss);
     hov.style.display='';
-    hvl.setAttribute('x1',X(best.ms)); hvl.setAttribute('x2',X(best.ms));
-    hvc.setAttribute('cx',X(best.ms)); hvc.setAttribute('cy',Y(best.tss));
-    hvc.setAttribute('fill',classify(best.tss).c);
-    hvh.setAttribute('cx',X(best.ms)); hvh.setAttribute('cy',Yh(best.h));
-    tip.innerHTML=T.tip(fmtDate(best.ms)+' '+hhmm(best.ms),fnum(best.tss),
+    tlab.style.opacity='.25';
+    hvl.setAttribute('x1',px); hvl.setAttribute('x2',px);
+    hvc.setAttribute('cx',px); hvc.setAttribute('cy',py); hvc.setAttribute('fill',classify(best.tss).c);
+    hvh.setAttribute('cx',px); hvh.setAttribute('cy',Yh(best.h));
+    hvxt.textContent=hhmm(best.ms); hvxt.setAttribute('x',px);
+    const lw=(hvxt.getComputedTextLength()||34)+11;
+    hvbg.setAttribute('x',px-lw/2); hvbg.setAttribute('width',lw);
+
+    tipEl.innerHTML=T.tip(fmtDate(best.ms)+' '+hhmm(best.ms),fnum(best.tss),
       (best.h-AHD_OFFSET).toFixed(2),best.U.toFixed(1));
-  });
-  hit.addEventListener('mouseleave',()=>{ hov.style.display='none'; tip.innerHTML=peakHTML; });
+    tipEl.classList.add('on');
+    const cr=card.getBoundingClientRect();
+    const cxp=rect.left+px/W*rect.width, cyp=rect.top+py/VH*rect.height;
+    const tw=tipEl.offsetWidth, th=tipEl.offsetHeight;
+    let left=cxp-cr.left-tw/2;
+    left=Math.max(6,Math.min(Math.max(6,cr.width-tw-6),left));
+    let top=cyp-cr.top-th-13;
+    if(top<rect.top-cr.top+2) top=cyp-cr.top+16;
+    tipEl.style.left=left.toFixed(1)+'px';
+    tipEl.style.top=top.toFixed(1)+'px';
+  }
+
+  hit.addEventListener('pointermove',e=>{ if(e.pointerType!=='touch') at(e.clientX,e.clientY); });
+  hit.addEventListener('pointerdown',e=>{ at(e.clientX,e.clientY); });
+  hit.addEventListener('pointerleave',e=>{ if(e.pointerType!=='touch') hide(); });
+  hit.addEventListener('touchstart',e=>{ const t=e.touches[0]; if(t) at(t.clientX,t.clientY); },{passive:true});
+  hit.addEventListener('touchmove',e=>{ const t=e.touches[0]; if(t) at(t.clientX,t.clientY); },{passive:true});
+  hit.addEventListener('touchend',()=>{ setTimeout(hide,1500); },{passive:true});
 }
 
 /* ---------- render ---------- */
@@ -609,7 +693,8 @@ function render(){
   const ri=rel<0.6?0:rel<0.9?1:rel<1.3?2:rel<2?3:4;
   document.getElementById('rel').innerHTML=T.relLine((rel*100).toFixed(0),T.rel[ri]);
 
-  const t0=now-7*24*3600e3, t1=now+7*24*3600e3;
+  const rg=RANGES[st.range];
+  const t0=now-rg.back*24*3600e3, t1=now+rg.fwd*24*3600e3;
   renderChart(pts,t0,t1);
 
   const fwd=pts.filter(p=>p.ms>now&&p.ms<=t1);
@@ -617,7 +702,7 @@ function render(){
     let pk=fwd[0]; fwd.forEach(p=>{if(p.tss>pk.tss)pk=p;});
     const dh=(pk.ms-now)/3600e3;
     const when=dh<1?T.withinHour:dh<48?T.hoursLater(dh.toFixed(0)):T.daysLater((dh/24).toFixed(1));
-    peakHTML=T.peakLine(fnum(pk.tss),when,fmtDate(pk.ms)+' '+hhmm(pk.ms));
+    peakHTML=T.peakLine(T.future[st.range],fnum(pk.tss),when,fmtDate(pk.ms)+' '+hhmm(pk.ms));
     document.getElementById('peakline').innerHTML=peakHTML;
   }
 
@@ -674,6 +759,16 @@ function setPoint(lat,lon){
 /* ---------- boot ---------- */
 applyStatic();
 document.getElementById('refresh').onclick=()=>loadData();
+document.querySelectorAll('#seg button').forEach(b=>{
+  b.onclick=()=>{
+    if(st.range===b.dataset.r) return;
+    st.range=b.dataset.r;
+    document.querySelectorAll('#seg button').forEach(x=>x.classList.toggle('on',x===b));
+    document.getElementById('chartTitle').textContent=T.rangeTitle[st.range];
+    document.getElementById('peakline').innerHTML='';
+    if(st.ready) render();
+  };
+});
 (function(){
   let p=readHash();
   if(!p){
@@ -688,6 +783,8 @@ document.getElementById('refresh').onclick=()=>loadData();
   loadData();
 })();
 setInterval(()=>{ if(st.ready) render(); },15*60*1000);
+let _rz=null;
+addEventListener('resize',()=>{ clearTimeout(_rz); _rz=setTimeout(()=>{ if(st.ready) render(); },220); });
 </script>
 </body>
 </html>

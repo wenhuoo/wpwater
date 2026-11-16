@@ -12,9 +12,9 @@ Live suspended-sediment prediction for any point in Western Port, Victoria. Clic
 
 Click anywhere in the bay. The page remembers the coordinates in the URL (`#-38.3831,145.2707`), so you can send a spot to someone else as a link.
 
-The page shows four things and nothing else: current suspended sediment, turbidity and clarity, how that compares with the monthly typical, and a 14-day curve.
+The page shows four things and nothing else: current suspended sediment, turbidity and clarity, how that compares with the monthly typical, and a curve you can switch between 24 hours, 7 days and 14 days. Hover or drag on the curve to read the sediment, tide and wind at any moment.
 
-The interface language follows your browser (`zh*` → Chinese, everything else → English). Force it with `?lang=zh` or `?lang=en`.
+The interface language follows your browser (`zh*` → Chinese, everything else → English). Force it with `?lang=zh` or `?lang=en`. The default chart window is `?r=7d`; `?r=24h` and `?r=14d` work too.
 
 ---
 
@@ -238,9 +238,9 @@ Reload and it takes effect. No compilation.
 
 点地图上任意水域即可。页面把坐标记在地址栏里（`#-38.3831,145.2707`），可以直接把某个钓点发给别人。
 
-页面只给四样东西：当前悬沙浓度、浊度与透明度、本月典型值对比、14 天曲线。
+页面只给四样东西：当前悬沙浓度、浊度与透明度、本月典型值对比、一条可在 24 小时 / 7 天 / 14 天之间切换的曲线。在曲线上滑动（或按住拖动）就能读到那一刻的悬沙、潮位和风速。
 
-界面语言跟随浏览器（`zh*` → 中文，其余 → 英文）。可以用 `?lang=zh` 或 `?lang=en` 强制指定。
+界面语言跟随浏览器（`zh*` → 中文，其余 → 英文）。可以用 `?lang=zh` 或 `?lang=en` 强制指定。时间窗默认 `?r=7d`，也支持 `?r=24h` 和 `?r=14d`。
 
 ---
 
