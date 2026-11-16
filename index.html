@@ -1,9 +1,9 @@
 <!DOCTYPE html>
-<html lang="zh-CN">
+<html lang="en">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Western Port 浑浊度</title>
+<title>Western Port Turbidity</title>
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
 <style>
 :root{--bg:#080b10;--panel:#0f161d;--panel2:#141f28;--line:#1d2a35;
@@ -15,7 +15,7 @@ font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","PingFang SC","Microsoft
 .wrap{max-width:1060px;margin:0 auto;padding:22px 20px 36px}
 header{display:flex;justify-content:space-between;align-items:center;gap:14px;flex-wrap:wrap;margin-bottom:13px}
 h1{margin:0;font-size:17px;font-weight:600;letter-spacing:.2px}
-h1 span{color:var(--dim);font-weight:400;font-size:12px;margin-left:8px}
+#subline{color:var(--dim);font-weight:400;font-size:12px;margin-left:8px;letter-spacing:0}
 .status{display:flex;align-items:center;gap:8px;font-size:11.5px;color:var(--mut);
 background:var(--panel);border:1px solid var(--line);border-radius:999px;padding:6px 12px;white-space:nowrap}
 .dot{width:6px;height:6px;border-radius:50%;background:var(--teal);box-shadow:0 0 0 3px rgba(51,181,165,.15)}
@@ -64,10 +64,10 @@ padding:9px 13px;font-size:12px;margin-bottom:12px}
 <div class="wrap">
 
   <header>
-    <h1>Western Port 浑浊度<span id="subline">悬沙浓度 · 实时</span></h1>
+    <h1><span id="h1text">Western Port Turbidity</span><span id="subline">suspended sediment · live</span></h1>
     <div style="display:flex;gap:8px;align-items:center">
-      <div class="status"><span class="dot" id="dot"></span><span id="statustext">连接中</span></div>
-      <button class="btn" id="refresh">刷新</button>
+      <div class="status"><span class="dot" id="dot"></span><span id="statustext">connecting</span></div>
+      <button class="btn" id="refresh">Refresh</button>
     </div>
   </header>
 
@@ -76,15 +76,15 @@ padding:9px 13px;font-size:12px;margin-bottom:12px}
   <div class="top">
     <div class="mapwrap">
       <div id="map"></div>
-      <div class="maphint">点击地图选点</div>
+      <div class="maphint" id="maphint">click the map to pick a spot</div>
     </div>
     <section class="card readout">
-      <div class="gtag">当前悬沙浓度</div>
+      <div class="gtag" id="gtag">suspended sediment</div>
       <svg id="gauge" viewBox="0 0 250 250"></svg>
       <div class="metrics">
-        <div class="m"><div class="k">浊度</div><div class="v"><span id="m-ntu">–</span><em>NTU</em></div></div>
-        <div class="m"><div class="k">透明度</div><div class="v"><span id="m-sd">–</span><em>m</em></div></div>
-        <div class="m"><div class="k">本月典型</div><div class="v"><span id="m-typ">–</span><em>mg/L</em></div></div>
+        <div class="m"><div class="k" id="k-ntu">Turbidity</div><div class="v"><span id="m-ntu">–</span><em>NTU</em></div></div>
+        <div class="m"><div class="k" id="k-sd">Clarity</div><div class="v"><span id="m-sd">–</span><em>m</em></div></div>
+        <div class="m"><div class="k" id="k-typ">Monthly typical</div><div class="v"><span id="m-typ">–</span><em>mg/L</em></div></div>
       </div>
       <div class="rel" id="rel">–</div>
     </section>
@@ -92,10 +92,10 @@ padding:9px 13px;font-size:12px;margin-bottom:12px}
 
   <section class="card chartcard">
     <div class="chead">
-      <h2 id="chartTitle">过去 7 天 → 未来 7 天</h2>
+      <h2 id="chartTitle">past 7 days → next 7 days</h2>
       <div class="legend">
-        <span><i style="background:#33b5a5"></i>悬沙 TSS（mg/L）</span>
-        <span><i style="background:#4a90d9"></i>潮位（m）</span>
+        <span><i style="background:#33b5a5"></i><span id="lg-tss">Suspended sediment (mg/L)</span></span>
+        <span><i style="background:#4a90d9"></i><span id="lg-tide">Tide (m)</span></span>
       </div>
     </div>
     <svg id="chart" viewBox="0 0 900 300"></svg>
@@ -105,8 +105,8 @@ padding:9px 13px;font-size:12px;margin-bottom:12px}
   <section class="card strip" id="strip"></section>
 
   <div class="foot">
-    数据 Open-Meteo（ECMWF · ERA5 · 波浪模型）· 潮汐调和常数标定自 Stony Point 潮汐表<br>
-    <a href="https://github.com/wenhuoo/wpwater#readme">方法与可信度边界</a>
+    <span id="foot1">Data: Open-Meteo (ECMWF · ERA5 · wave model) · tidal harmonics calibrated to Stony Point tide tables</span><br>
+    <a id="foot2" href="https://github.com/wenhuoo/wpwater#readme">Methods &amp; limitations</a>
   </div>
 </div>
 
@@ -116,6 +116,99 @@ const BAY=[[[-38.476,145.0253],[-38.4814,145.0274],[-38.4845,145.0331],[-38.4864
 const CTRL=[[-38.505,145.085,14.0,2.3,-0.818,1.5,0.7,60,-0.8,0.92,[2.5,2.4,2.5,2.7,3.0,3.3,3.5,3.6,3.5,3.3,3.0,2.7],[0.89,0.96,1.0,1.02,1.05,1.1,1.17,1.16,1.01,0.87,0.84,0.85]],[-38.516,145.37,6.0,1.9,-0.635,1.8,0.6,80,0.2,0.95,[3.3,3.2,3.3,3.6,4.0,4.4,4.7,4.8,4.7,4.4,4.0,3.6],[0.89,0.97,1.02,1.04,1.06,1.1,1.17,1.16,1.0,0.86,0.83,0.85]],[-38.376,145.228,8.0,1.3,-0.235,3.0,0.35,150,0.0,1.0,[4.5,4.3,4.5,5.0,5.9,6.8,7.6,7.9,7.6,6.8,5.9,5.0],[0.81,0.86,0.91,0.96,1.04,1.15,1.26,1.26,1.08,0.9,0.82,0.8]],[-38.3831,145.2707,3.2,0.34,1.457,3.0,0.12,250,0.25,1.03,[5.8,5.4,5.8,7.1,9.3,12.2,14.9,16.1,14.9,12.2,9.3,7.1],[0.99,1.08,1.21,1.15,0.95,0.82,0.78,0.75,0.77,0.83,0.86,0.92]],[-38.3118,145.2668,1.3,0.45,0.318,5.5,0.15,320,0.35,1.06,[9.8,9.1,9.8,11.7,15.0,19.3,23.2,24.8,23.2,19.3,15.0,11.7],[0.69,0.74,0.82,0.92,1.06,1.24,1.4,1.37,1.12,0.88,0.76,0.69]],[-38.268,145.252,2.5,0.5,0.899,6.0,0.1,300,0.9,1.18,[10.4,9.6,10.4,12.7,16.7,22.0,26.9,29.0,26.9,22.0,16.7,12.7],[0.59,0.64,0.75,0.9,1.11,1.35,1.55,1.52,1.22,0.89,0.71,0.62]],[-38.25,145.28,1.6,0.55,0.434,5.5,0.08,280,1.3,1.28,[9.1,8.6,9.1,11.0,14.1,18.1,21.7,23.3,21.7,18.1,14.1,11.0],[0.63,0.68,0.77,0.91,1.1,1.33,1.52,1.48,1.18,0.88,0.72,0.65]],[-38.46,145.135,12.0,2.1,-0.495,1.8,0.55,90,-0.55,0.95,[4.2,4.0,4.2,4.5,5.0,5.5,5.8,6.0,5.8,5.5,5.0,4.5],[0.89,0.96,1.0,1.02,1.05,1.1,1.17,1.16,1.01,0.87,0.84,0.85]],[-38.43,145.245,10.0,1.55,-0.301,2.4,0.3,120,-0.1,0.99,[4.1,3.8,4.1,5.0,6.5,8.5,10.4,11.3,10.4,8.5,6.5,5.0],[0.99,1.08,1.21,1.15,0.95,0.82,0.78,0.75,0.77,0.83,0.86,0.92]],[-38.445,145.305,11.0,1.5,-0.347,2.2,0.32,115,0.12,1.01,[3.5,3.2,3.5,4.3,5.6,7.3,8.9,9.7,8.9,7.3,5.6,4.3],[0.99,1.08,1.21,1.15,0.95,0.82,0.78,0.75,0.77,0.83,0.86,0.92]],[-38.48,145.335,8.0,1.4,-0.284,2.6,0.35,130,0.15,0.98,[4.9,4.8,4.9,5.4,6.0,6.6,7.1,7.2,7.1,6.6,6.0,5.4],[0.89,0.97,1.02,1.04,1.06,1.1,1.17,1.16,1.0,0.86,0.83,0.85]],[-38.46,145.38,5.0,0.9,0.049,4.0,0.25,200,0.45,1.06,[9.1,8.8,9.1,9.9,11.0,12.1,12.9,13.2,12.9,12.1,11.0,9.9],[0.89,0.97,1.02,1.04,1.06,1.1,1.17,1.16,1.0,0.86,0.83,0.85]],[-38.41,145.43,4.0,0.75,0.23,4.5,0.18,230,0.8,1.12,[10.7,10.4,10.7,11.7,13.0,14.3,15.3,15.6,15.3,14.3,13.0,11.7],[0.89,0.97,1.02,1.04,1.06,1.1,1.17,1.16,1.0,0.86,0.83,0.85]],[-38.305,145.2,4.5,0.7,0.204,4.5,0.12,240,0.55,1.1,[7.4,6.8,7.4,8.8,11.3,14.5,17.4,18.6,17.4,14.5,11.3,8.8],[0.69,0.74,0.82,0.92,1.06,1.24,1.4,1.37,1.12,0.88,0.76,0.69]],[-38.28,145.32,6.0,0.85,0.041,4.0,0.1,220,1.0,1.2,[7.3,6.9,7.3,8.8,11.3,14.5,17.4,18.7,17.4,14.5,11.3,8.8],[0.63,0.68,0.77,0.91,1.1,1.33,1.52,1.48,1.18,0.88,0.72,0.65]],[-38.225,145.375,1.5,0.45,0.556,5.5,0.06,280,1.7,1.35,[8.5,8.0,8.5,10.3,13.2,16.9,20.3,21.8,20.3,16.9,13.2,10.3],[0.63,0.68,0.77,0.91,1.1,1.33,1.52,1.48,1.18,0.88,0.72,0.65]],[-38.27,145.49,1.8,0.45,0.531,5.5,0.06,280,1.8,1.35,[8.5,8.0,8.5,10.3,13.2,16.9,20.3,21.8,20.3,16.9,13.2,10.3],[0.63,0.68,0.77,0.91,1.1,1.33,1.52,1.48,1.18,0.88,0.72,0.65]],[-38.29,145.37,2.0,0.55,0.505,5.0,0.1,270,1.1,1.22,[7.9,7.5,7.9,9.5,12.2,15.7,18.8,20.2,18.8,15.7,12.2,9.5],[0.63,0.68,0.77,0.91,1.1,1.33,1.52,1.48,1.18,0.88,0.72,0.65]],[-38.37,145.25,2.5,0.6,0.342,4.8,0.14,260,0.7,1.14,[9.0,8.6,9.0,10.0,11.8,13.6,15.2,15.8,15.2,13.6,11.8,10.0],[0.81,0.86,0.91,0.96,1.04,1.15,1.26,1.26,1.08,0.9,0.82,0.8]],[-38.4,145.17,3.0,0.45,0.447,4.5,0.2,240,0.2,1.02,[9.0,8.6,9.0,10.0,11.8,13.6,15.2,15.8,15.2,13.6,11.8,10.0],[0.81,0.86,0.91,0.96,1.04,1.15,1.26,1.26,1.08,0.9,0.82,0.8]],[-38.42,145.18,4.0,0.55,0.279,4.0,0.25,220,0.15,1.01,[9.0,8.6,9.0,10.0,11.8,13.6,15.2,15.8,15.2,13.6,11.8,10.0],[0.81,0.86,0.91,0.96,1.04,1.15,1.26,1.26,1.08,0.9,0.82,0.8]],[-38.4,145.125,3.0,0.5,0.38,4.2,0.25,230,0.05,1.0,[9.0,8.6,9.0,10.0,11.8,13.6,15.2,15.8,15.2,13.6,11.8,10.0],[0.81,0.86,0.91,0.96,1.04,1.15,1.26,1.26,1.08,0.9,0.82,0.8]]];
 </script>
 <script>
+/* ---------- language ---------- */
+function pickLang(){
+  try{
+    const q=new URLSearchParams(location.search).get('lang');
+    if(q==='zh'||q==='en') return q;
+  }catch(e){}
+  const ls=(navigator.languages&&navigator.languages.length)?navigator.languages:[navigator.language||'en'];
+  for(let i=0;i<ls.length;i++) if(/^zh/i.test(ls[i])) return 'zh';
+  return 'en';
+}
+const LANG=pickLang();
+const MON=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+
+const I18N={
+zh:{
+  title:'Western Port 浑浊度',
+  h1:'Western Port 浑浊度',
+  sub0:'悬沙浓度 · 实时',
+  connecting:'连接中', loading:'获取数据…', live:'实时数据', failed:'取数失败',
+  refresh:'刷新', maphint:'点击地图选点',
+  gtag:'当前悬沙浓度',
+  k_ntu:'浊度', k_sd:'透明度', k_typ:'本月典型',
+  chart:'过去 7 天 → 未来 7 天',
+  lg_tss:'悬沙 TSS（mg/L）', lg_tide:'潮位（m）',
+  foot1:'数据 Open-Meteo（ECMWF · ERA5 · 波浪模型）· 潮汐调和常数标定自 Stony Point 潮汐表',
+  foot2:'方法与可信度边界',
+  err:'无法获取实时气象数据（{m}）。需要联网，并且不能被内置预览的 CSP 拦截——请用浏览器打开本页。',
+  mapfail:'地图需要联网加载 Leaflet。<br>页面其余功能不受影响。',
+  clr:['清澈','微浑','中等','浑浊','很浑'],
+  rel:['明显偏清','偏清','接近常年','偏浑','明显偏浑'],
+  relLine:(p,r)=>`当前是本月典型的 <b>${p}%</b>（${r}）`,
+  peakLine:(v,w,d)=>`未来 7 天最浑 <b>${v}</b> mg/L，${w}（${d}）`,
+  withinHour:'约 1 小时内', hoursLater:h=>`${h} 小时后`, daysLater:d=>`${d} 天后`,
+  now:'现在',
+  tip:(d,v,h,u)=>`<b>${d}</b> · 悬沙 <b>${v}</b> mg/L · 潮位 ${h} m · 风 ${u} m/s`,
+  wind:(u,c,g)=>`风 <b>${u}</b> m/s ${c}（阵风 ${g}）`,
+  wave:h=>`浪 <b>${h}</b> m`,
+  tide:(h,tr,r)=>`潮位 <b>${h}</b> m · ${tr} ${r} m/h`,
+  depth:d=>`水深 <b>${d}</b> m`,
+  rain:r=>`48h 雨 <b>${r}</b> mm`,
+  mud:q=>`细泥存量 <b>${q}</b>`,
+  tr:['涨','落','平'],
+  dir:['北','东北','东','东南','南','西南','西','西北'],
+  date:(m,d)=>`${m}/${d}`,
+  month:m=>`${m}月`
+},
+en:{
+  title:'Western Port Turbidity',
+  h1:'Western Port Turbidity',
+  sub0:'suspended sediment · live',
+  connecting:'connecting', loading:'loading…', live:'live data', failed:'fetch failed',
+  refresh:'Refresh', maphint:'click the map to pick a spot',
+  gtag:'suspended sediment',
+  k_ntu:'Turbidity', k_sd:'Clarity', k_typ:'Monthly typical',
+  chart:'past 7 days → next 7 days',
+  lg_tss:'Suspended sediment (mg/L)', lg_tide:'Tide (m)',
+  foot1:'Data: Open-Meteo (ECMWF · ERA5 · wave model) · tidal harmonics calibrated to Stony Point tide tables',
+  foot2:'Methods & limitations',
+  err:'Could not load live weather data ({m}). The page needs internet access and must not be blocked by a preview panel CSP — open it in a normal browser.',
+  mapfail:'The map needs network access to load Leaflet.<br>Everything else still works.',
+  clr:['Clear','Slightly turbid','Moderate','Turbid','Very turbid'],
+  rel:['much clearer','clearer','about normal','more turbid','much more turbid'],
+  relLine:(p,r)=>`<b>${p}%</b> of this month's typical (${r})`,
+  peakLine:(v,w,d)=>`Peakiest in 7 days <b>${v}</b> mg/L, ${w} (${d})`,
+  withinHour:'within the hour', hoursLater:h=>`in ${h} h`, daysLater:d=>`in ${d} days`,
+  now:'now',
+  tip:(d,v,h,u)=>`<b>${d}</b> · sediment <b>${v}</b> mg/L · tide ${h} m · wind ${u} m/s`,
+  wind:(u,c,g)=>`Wind <b>${u}</b> m/s ${c} (gust ${g})`,
+  wave:h=>`Wave <b>${h}</b> m`,
+  tide:(h,tr,r)=>`Tide <b>${h}</b> m · ${tr} ${r} m/h`,
+  depth:d=>`Depth <b>${d}</b> m`,
+  rain:r=>`Rain 48h <b>${r}</b> mm`,
+  mud:q=>`Mud stock <b>${q}</b>`,
+  tr:['rising','falling','slack'],
+  dir:['N','NE','E','SE','S','SW','W','NW'],
+  date:(m,d)=>`${d} ${MON[m-1]}`,
+  month:m=>MON[m-1]
+}
+};
+const T=I18N[LANG];
+
+function applyStatic(){
+  document.documentElement.lang=LANG==='zh'?'zh-CN':'en';
+  document.title=T.title;
+  const set=(id,v)=>{const e=document.getElementById(id); if(e) e.textContent=v;};
+  set('h1text',T.h1); set('subline',T.sub0); set('statustext',T.connecting);
+  set('refresh',T.refresh); set('maphint',T.maphint); set('gtag',T.gtag);
+  set('k-ntu',T.k_ntu); set('k-sd',T.k_sd); set('k-typ',T.k_typ);
+  set('chartTitle',T.chart); set('lg-tss',T.lg_tss); set('lg-tide',T.lg_tide);
+  set('foot1',T.foot1); set('foot2',T.foot2);
+}
+
+/* ---------- constants ---------- */
 const EPOCH=Date.UTC(2026,9,20,13,0,0);
 const G=9.81,RHO=1025.0,CD=0.0025,FW=0.02,TAUCR=0.10;
 const DREF=4.0,NN=0.60,QM=2.0,Q0=0.30,QK=0.55,TQ=30*24;
@@ -128,7 +221,7 @@ const TIDE={Z0:1.733,c:[
 const AHD_OFFSET=1.69;
 const KLAT=111.32, KLON=KLAT*Math.cos(38.38*Math.PI/180);
 
-/* ---------- 几何 ---------- */
+/* ---------- geometry ---------- */
 function pip(lat,lon,ring){
   let inside=false;
   for(let i=0,j=ring.length-1;i<ring.length;j=i++){
@@ -169,7 +262,7 @@ function fetchAt(lat,lon){
   return out;
 }
 
-/* ---------- 空间参数场 ---------- */
+/* ---------- spatial parameter field ---------- */
 function fieldAt(lat,lon){
   let wsum=0;
   const ws=[];
@@ -193,7 +286,7 @@ function fieldAt(lat,lon){
     fetch:fetchAt(lat,lon)};
 }
 
-/* ---------- 物理 ---------- */
+/* ---------- physics ---------- */
 function tideRef(h){
   let v=TIDE.Z0;
   for(const k of TIDE.c) v+=k.a*Math.cos((k.sp*h-k.g)*Math.PI/180);
@@ -201,8 +294,8 @@ function tideRef(h){
 }
 function tideAt(s,h){ return TIDE.Z0+s.amp*(tideRef(h-s.lag)-TIDE.Z0); }
 function tideRate(s,h){ return s.amp*(tideRef(h-s.lag+0.05)-tideRef(h-s.lag-0.05))/0.10; }
-function waveK(T,d){
-  const w=2*Math.PI/T;
+function waveK(Tp,d){
+  const w=2*Math.PI/Tp;
   let k=Math.max(w*w/G,1e-4);
   for(let i=0;i<40;i++){
     const th=Math.tanh(k*d), f=G*k*th-w*w, df=G*th+G*k*d*(1-th*th);
@@ -213,19 +306,19 @@ function waveK(T,d){
   }
   return k;
 }
-function ubFrom(Hs,T,d){
-  if(!(Hs>0.005)||!(T>0.4)||!(d>0.15)) return 0;
-  const k=waveK(T,d), sh=Math.sinh(Math.min(k*d,60));
+function ubFrom(Hs,Tp,d){
+  if(!(Hs>0.005)||!(Tp>0.4)||!(d>0.15)) return 0;
+  const k=waveK(Tp,d), sh=Math.sinh(Math.min(k*d,60));
   if(!isFinite(sh)||sh<1e-9) return 0;
-  const ub=Math.PI*Hs/(T*sh);
+  const ub=Math.PI*Hs/(Tp*sh);
   return isFinite(ub)?Math.min(ub,4):0;
 }
 function smbWave(U,F,d){
   if(!(U>0.8)||!(F>100)) return {Hs:0,T:0,ub:0};
   let Hs=0.0016*(U*U/G)*Math.sqrt(G*F/(U*U));
-  let T=0.40*(U/G)*Math.pow(G*F/(U*U),1/3);
+  let Tp=0.40*(U/G)*Math.pow(G*F/(U*U),1/3);
   Hs=Math.min(Hs,0.55*d);
-  return {Hs,T,ub:ubFrom(Hs,T,d)};
+  return {Hs,T:Tp,ub:ubFrom(Hs,Tp,d)};
 }
 function fetchFor(s,dir){ return s.fetch[Math.round((((dir%360)+360)%360)/45)%8]; }
 function mob(tau){ return Math.pow(Math.max(0,tau/TAUCR-1),NN); }
@@ -246,11 +339,10 @@ function step(s,t,env){
   return {h,d,Uc,tc,tw,tau:tc+tw,Ceq,ws,ub:ws.ub,HsEff:Math.sqrt(ws.Hs*ws.Hs+HsSw*HsSw),mt,mw,qf};
 }
 
-/* ---------- 状态 ---------- */
+/* ---------- state ---------- */
 const st={lat:-38.3831,lon:145.2707,site:null,ready:false,wx:null,Q:null,qt:null,busy:false};
 
-/* ---------- 取数 ---------- */
-function tstr(d){ return d.toISOString().slice(0,13)+':00'; }
+/* ---------- data ---------- */
 async function fetchJSON(url,ms){
   const ac=new AbortController();
   const tm=setTimeout(()=>ac.abort(),ms||30000);
@@ -259,7 +351,7 @@ async function fetchJSON(url,ms){
     if(!r.ok) throw new Error('HTTP '+r.status);
     return await r.json();
   }catch(e){
-    throw e.name==='AbortError'?new Error('请求超时'):e;
+    throw e.name==='AbortError'?new Error('timeout'):e;
   }finally{ clearTimeout(tm); }
 }
 
@@ -289,7 +381,7 @@ async function fetchQ(){
 async function loadData(){
   if(st.busy) return;
   st.busy=true;
-  setStatus('warn','获取数据…');
+  setStatus('warn',T.loading);
   const {lat,lon}=st;
   try{
     const W='https://api.open-meteo.com/v1/forecast';
@@ -312,16 +404,16 @@ async function loadData(){
     st.site=fieldAt(lat,lon);
     st.ready=true;
     document.getElementById('errbox').innerHTML='';
-    setStatus('','实时数据');
+    setStatus('',T.live);
     render();
   }catch(e){
-    setStatus('err','取数失败');
+    setStatus('err',T.failed);
     document.getElementById('errbox').innerHTML=
-      `<div class="err">无法获取实时气象数据（${e.message}）。需要联网，并且不能被内置预览的 CSP 拦截——请用浏览器打开本页。</div>`;
+      `<div class="err">${T.err.replace('{m}',e.message)}</div>`;
   }finally{ st.busy=false; }
 }
 
-/* ---------- 采样 ---------- */
+/* ---------- sampling ---------- */
 function sampleAt(arr,times,t){
   if(!times.length) return 0;
   const g=i=>{const v=arr[i];return (v==null||!isFinite(v))?0:v;};
@@ -357,29 +449,29 @@ function buildSeries(s){
   return out;
 }
 
-/* ---------- 格式化 ---------- */
+/* ---------- formatting ---------- */
 function fnum(v){ return v<10?(Math.round(v*10)/10).toFixed(1):Math.round(v).toString(); }
-function classify(v){
-  if(v<5) return {t:'清澈',c:'#33b5a5'};
-  if(v<15) return {t:'微浑',c:'#5fbf9a'};
-  if(v<40) return {t:'中等',c:'#e9c04a'};
-  if(v<80) return {t:'浑浊',c:'#e9954a'};
-  return {t:'很浑',c:'#e0574c'};
-}
+const CLR_COL=['#33b5a5','#5fbf9a','#e9c04a','#e9954a','#e0574c'];
+function clrIdx(v){ return v<5?0:v<15?1:v<40?2:v<80?3:4; }
+function classify(v){ const i=clrIdx(v); return {t:T.clr[i],c:CLR_COL[i]}; }
 function mel(ms,opt){
   return new Date(ms).toLocaleString('en-AU',Object.assign({timeZone:'Australia/Melbourne'},opt));
 }
-function hhmm(ms){ return mel(ms,{hour:'2-digit',minute:'2-digit',hour12:false}); }
-function compass(d){
-  const a=['北','东北','东','东南','南','西南','西','西北'];
-  return a[Math.round((((d%360)+360)%360)/45)%8];
+const DTF=new Intl.DateTimeFormat('en-AU',{timeZone:'Australia/Melbourne',day:'numeric',month:'numeric'});
+function dparts(ms){
+  const o={};
+  for(const p of DTF.formatToParts(ms)) o[p.type]=p.value;
+  return [+o.day,+o.month];
 }
+function fmtDate(ms){ const q=dparts(ms); return T.date(q[1],q[0]); }
+function hhmm(ms){ return mel(ms,{hour:'2-digit',minute:'2-digit',hour12:false}); }
+function compass(d){ return T.dir[Math.round((((d%360)+360)%360)/45)%8]; }
 function setStatus(kind,text){
   document.getElementById('dot').className='dot'+(kind?' '+kind:'');
   document.getElementById('statustext').textContent=text;
 }
 
-/* ---------- 表盘 ---------- */
+/* ---------- gauge ---------- */
 function renderGauge(v){
   const svg=document.getElementById('gauge');
   const cx=125,cy=126,R=92,sw=15;
@@ -387,7 +479,7 @@ function renderGauge(v){
   const frac=Math.max(0,Math.min(1,Math.log10(Math.max(v,lo)/lo)/Math.log10(hi/lo)));
   const a0=Math.PI*0.75, a1=Math.PI*2.25;
   const pt=f=>[cx+R*Math.cos(a0+(a1-a0)*f), cy+R*Math.sin(a0+(a1-a0)*f)];
-  const [sx,sy]=pt(0), [ex,ey]=pt(1), [px,py]=pt(frac);
+  const sx=pt(0)[0], sy=pt(0)[1], ex=pt(1)[0], ey=pt(1)[1], px=pt(frac)[0], py=pt(frac)[1];
   const path=`M ${sx.toFixed(1)} ${sy.toFixed(1)} A ${R} ${R} 0 1 1 ${ex.toFixed(1)} ${ey.toFixed(1)}`;
   const len=Math.abs(a1-a0)*R;
   svg.innerHTML=`
@@ -405,7 +497,7 @@ function renderGauge(v){
     <text x="${cx}" y="${cy+50}" text-anchor="middle" fill="${cl.c}" font-size="12" opacity=".9" letter-spacing="1px">${cl.t}</text>`;
 }
 
-/* ---------- 图表 ---------- */
+/* ---------- chart ---------- */
 let peakHTML='';
 function renderChart(pts,t0,t1){
   const svg=document.getElementById('chart');
@@ -429,10 +521,11 @@ function renderChart(pts,t0,t1){
 
   let ticks='';
   const lh=parseInt(mel(t0,{hour:'2-digit',hour12:false}),10);
-  let ms0=t0+((24-lh)%24)*3600e3, first=true;
+  const ms0=t0+((24-lh)%24)*3600e3;
+  let first=true;
   for(let ms=ms0;ms<=t1;ms+=24*3600e3){
-    const x=X(ms), day=mel(ms,{day:'numeric'});
-    const lbl=(first||day==='1')?mel(ms,{month:'numeric',day:'numeric'}):day;
+    const x=X(ms), dp=dparts(ms);
+    const lbl=(first||dp[0]===1)?T.month(dp[1]):String(dp[0]);
     ticks+=`<line x1="${x.toFixed(1)}" y1="${T1}" x2="${x.toFixed(1)}" y2="${B2}" stroke="#141f28" stroke-width="1"/>`;
     ticks+=`<text x="${x.toFixed(1)}" y="${B2+16}" text-anchor="middle" fill="#4d6274" font-size="9">${lbl}</text>`;
     first=false;
@@ -463,7 +556,7 @@ function renderChart(pts,t0,t1){
     <path d="${tl}" fill="none" stroke="#4a90d9" stroke-width="1.15" opacity=".75"/>
     <line x1="${xn.toFixed(1)}" y1="${T1-6}" x2="${xn.toFixed(1)}" y2="${B2}" stroke="#8ba4b8"
       stroke-width="1" stroke-dasharray="3 3" opacity=".45"/>
-    <text x="${xn.toFixed(1)}" y="${T1-9}" text-anchor="middle" fill="#7f96a8" font-size="8.5">现在</text>
+    <text x="${xn.toFixed(1)}" y="${T1-9}" text-anchor="middle" fill="#7f96a8" font-size="8.5">${T.now}</text>
     <text x="${W-R+7}" y="${T2+4}" fill="#3f6f9e" font-size="8.5">${hmax.toFixed(1)}</text>
     <text x="${W-R+7}" y="${B2+4}" fill="#3f6f9e" font-size="8.5">${hmin.toFixed(1)}</text>
     <g id="hover" style="display:none">
@@ -485,12 +578,13 @@ function renderChart(pts,t0,t1){
     hvc.setAttribute('cx',X(best.ms)); hvc.setAttribute('cy',Y(best.tss));
     hvc.setAttribute('fill',classify(best.tss).c);
     hvh.setAttribute('cx',X(best.ms)); hvh.setAttribute('cy',Yh(best.h));
-    tip.innerHTML=`<b>${mel(best.ms,{month:'numeric',day:'numeric'})} ${hhmm(best.ms)}</b> · 悬沙 <b>${fnum(best.tss)}</b> mg/L · 潮位 ${(best.h-AHD_OFFSET).toFixed(2)} m · 风 ${best.U.toFixed(1)} m/s`;
+    tip.innerHTML=T.tip(fmtDate(best.ms)+' '+hhmm(best.ms),fnum(best.tss),
+      (best.h-AHD_OFFSET).toFixed(2),best.U.toFixed(1));
   });
   hit.addEventListener('mouseleave',()=>{ hov.style.display='none'; tip.innerHTML=peakHTML; });
 }
 
-/* ---------- 渲染 ---------- */
+/* ---------- render ---------- */
 function render(){
   if(!st.ready) return;
   const s=st.site, now=Date.now();
@@ -503,7 +597,7 @@ function render(){
   pts.forEach(p=>{ if(Math.abs(p.ms-now)<Math.abs(cur.ms-now)) cur=p; });
 
   document.getElementById('subline').textContent=
-    `${s.lat.toFixed(4)}, ${s.lon.toFixed(4)} · ${mel(now,{month:'numeric',day:'numeric'})} ${hhmm(now)}`;
+    s.lat.toFixed(4)+', '+s.lon.toFixed(4)+' · '+fmtDate(now)+' '+hhmm(now);
 
   renderGauge(cur.tss);
   document.getElementById('m-ntu').textContent=fnum(cur.tss/1.3);
@@ -512,8 +606,8 @@ function render(){
   const typNow=s.typ[mo];
   document.getElementById('m-typ').textContent=fnum(typNow);
   const rel=cur.tss/typNow;
-  const relTxt=rel<0.6?'明显偏清':rel<0.9?'偏清':rel<1.3?'接近常年':rel<2?'偏浑':'明显偏浑';
-  document.getElementById('rel').innerHTML=`当前是本月典型的 <b>${(rel*100).toFixed(0)}%</b>（${relTxt}）`;
+  const ri=rel<0.6?0:rel<0.9?1:rel<1.3?2:rel<2?3:4;
+  document.getElementById('rel').innerHTML=T.relLine((rel*100).toFixed(0),T.rel[ri]);
 
   const t0=now-7*24*3600e3, t1=now+7*24*3600e3;
   renderChart(pts,t0,t1);
@@ -522,35 +616,34 @@ function render(){
   if(fwd.length){
     let pk=fwd[0]; fwd.forEach(p=>{if(p.tss>pk.tss)pk=p;});
     const dh=(pk.ms-now)/3600e3;
-    const when=dh<1?'约 1 小时内':dh<48?(dh.toFixed(0)+' 小时后'):((dh/24).toFixed(1)+' 天后');
-    peakHTML=`未来 7 天最浑 <b>${fnum(pk.tss)}</b> mg/L，${when}（${mel(pk.ms,{month:'numeric',day:'numeric'})} ${hhmm(pk.ms)}）`;
+    const when=dh<1?T.withinHour:dh<48?T.hoursLater(dh.toFixed(0)):T.daysLater((dh/24).toFixed(1));
+    peakHTML=T.peakLine(fnum(pk.tss),when,fmtDate(pk.ms)+' '+hhmm(pk.ms));
     document.getElementById('peakline').innerHTML=peakHTML;
   }
 
   const gust=sampleAt(st.wx.gust,st.wx.time,now);
-  let rain48=0, rain7=0;
+  let rain48=0;
   for(let i=0;i<st.wx.time.length;i++){
     const d=now-st.wx.time[i];
     if(d>=0&&d<48*3600e3) rain48+=st.wx.rain[i];
-    if(d>=0&&d<7*24*3600e3) rain7+=st.wx.rain[i];
   }
   const rate=tideRate(s,(now-EPOCH)/3600e3);
-  const trend=rate>0.03?'涨':rate<-0.03?'落':'平';
+  const tr=rate>0.03?T.tr[0]:rate<-0.03?T.tr[1]:T.tr[2];
   document.getElementById('strip').innerHTML=
-    `<span>风 <b>${cur.U.toFixed(1)}</b> m/s ${compass(cur.dir)}（阵风 ${gust.toFixed(1)}）</span>`+
-    `<span>浪 <b>${cur.HsEff.toFixed(2)}</b> m</span>`+
-    `<span>潮位 <b>${(cur.h-AHD_OFFSET).toFixed(2)}</b> m · ${trend} ${Math.abs(rate).toFixed(2)} m/h</span>`+
-    `<span>水深 <b>${cur.d.toFixed(1)}</b> m</span>`+
-    `<span>48h 雨 <b>${rain48.toFixed(1)}</b> mm</span>`+
-    `<span>细泥存量 <b>${cur.Q.toFixed(2)}</b></span>`;
+    '<span>'+T.wind(cur.U.toFixed(1),compass(cur.dir),gust.toFixed(1))+'</span>'+
+    '<span>'+T.wave(cur.HsEff.toFixed(2))+'</span>'+
+    '<span>'+T.tide((cur.h-AHD_OFFSET).toFixed(2),tr,Math.abs(rate).toFixed(2))+'</span>'+
+    '<span>'+T.depth(cur.d.toFixed(1))+'</span>'+
+    '<span>'+T.rain(rain48.toFixed(1))+'</span>'+
+    '<span>'+T.mud(cur.Q.toFixed(2))+'</span>';
 }
 
-/* ---------- 地图 ---------- */
+/* ---------- map ---------- */
 let map=null, marker=null;
 function initMap(lat,lon){
   if(typeof L==='undefined'){
     document.getElementById('map').innerHTML=
-      '<div style="padding:16px;font-size:12px;color:#7b90a3;line-height:1.7">地图需要联网加载 Leaflet。<br>页面其余功能不受影响。</div>';
+      '<div style="padding:16px;font-size:12px;color:#7b90a3;line-height:1.7">'+T.mapfail+'</div>';
     return;
   }
   map=L.map('map',{zoomControl:true,attributionControl:false}).setView([lat,lon],11);
@@ -568,7 +661,7 @@ function readHash(){
   return (isFinite(la)&&isFinite(lo)&&la<-37.9&&la>-38.8&&lo>144.9&&lo<145.7)?[la,lo]:null;
 }
 function setPoint(lat,lon){
-  const [la,lo]=snapToWater(lat,lon);
+  const q=snapToWater(lat,lon), la=q[0], lo=q[1];
   st.lat=la; st.lon=lo;
   try{ localStorage.setItem('wp_point',JSON.stringify([la,lo])); }catch(e){}
   try{ history.replaceState(null,'','#'+la.toFixed(4)+','+lo.toFixed(4)); }catch(e){}
@@ -578,7 +671,8 @@ function setPoint(lat,lon){
   timer=setTimeout(()=>loadData(),350);
 }
 
-/* ---------- 启动 ---------- */
+/* ---------- boot ---------- */
+applyStatic();
 document.getElementById('refresh').onclick=()=>loadData();
 (function(){
   let p=readHash();

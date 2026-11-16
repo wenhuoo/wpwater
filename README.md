@@ -1,18 +1,246 @@
-# Western Port 浑浊度
+# Western Port Turbidity
 
-西港（Western Port, Victoria）任意一点的悬沙浓度实时预测。点地图选位置，给出当前值与未来 7 天的走势。
+**English** · [中文](#中文)
 
-👉 **https://wenhuoo.github.io/wpwater/**
+Live suspended-sediment prediction for any point in Western Port, Victoria. Click the map, get the current value and the next 7 days.
 
-![界面](https://img.shields.io/badge/status-personal%20project-33b5a5)
+**https://wenhuoo.github.io/wpwater/**
 
 ---
 
-## 用法
+## What it does
 
-打开页面，点地图上任意水域即可。地址栏会记住坐标（`#-38.3831,145.2707`），可以直接把链接发给别人。
+Click anywhere in the bay. The page remembers the coordinates in the URL (`#-38.3831,145.2707`), so you can send a spot to someone else as a link.
 
-页面只给四样东西：当前悬沙浓度、浊度与透明度、本月典型值对比、未来 7 天曲线。没有别的。
+The page shows four things and nothing else: current suspended sediment, turbidity and clarity, how that compares with the monthly typical, and a 14-day curve.
+
+The interface language follows your browser (`zh*` → Chinese, everything else → English). Force it with `?lang=zh` or `?lang=en`.
+
+---
+
+## How it works
+
+A **single-point, single-layer, quasi-steady** resuspension model. It is not a 3D hydrodynamic model and it contains no advection.
+
+### 1. Tides
+
+Water level is synthesised from four constituents (M₂, S₂, K₁, O₁), on the tidal planes given in the 2015 conceptual model report:
+
+| HAT | MHWS | MHWN | AHD | MLWN | MLWS | LAT |
+|---|---|---|---|---|---|---|
+| 1.72 | 1.15 | 0.70 | 0.00 | −0.63 | −1.08 | −1.69 m |
+
+The harmonic constants are calibrated against Stony Point tide tables — RMS residual 3.6 cm over 27 high/low water points. Tidal range amplification (2.2 m at Stony Point → 3.1 m at Tooradin) and phase lag (roughly 2 hours from the entrance to Tooradin) are interpolated from the report and carried by the `amp` and `lag` parameters of each control point.
+
+Tidal current speed comes from the rate of change of water level:
+
+```
+U  = kc · |dh/dt|
+τc = ρ · Cd · U²        ρ = 1025, Cd = 0.0025
+```
+
+`kc` is "how much current one metre per hour of tidal rise produces". Physically it is the ratio of tidal prism to channel cross-section: small on open shallow banks (0.3–0.6), large in constricted entrances (1.9–2.3).
+
+### 2. Wind waves
+
+Local wind sea uses the SMB growth curves, with fetch taken from **real geometry** — not a lookup table. Eight rays are cast from the point against the coastline polygon until each one hits land:
+
+```
+Hs = 0.0016 · (U²/g) · √(gF/U²)
+T  = 0.40 · (U/g) · (gF/U²)^(1/3)
+```
+
+Offshore swell is added through a per-point penetration coefficient, then the dispersion relation `ω² = gk·tanh(kd)` is solved for wavenumber (Newton iteration) to get the bed orbital velocity:
+
+```
+ub = π·Hs / (T·sinh(kd))
+τw = ½ · ρ · fw · ub²      fw = 0.02
+```
+
+### 3. Resuspension
+
+Two **independent** entrainment channels, each following the Partheniades excess-shear law:
+
+```
+mob = (τ/τcr − 1)^0.6      τcr = 0.10 Pa
+
+Ceq = bg + M·qf·( mob(τc) + mob(τw)·e^(−d/4) )
+```
+
+The important detail is that the depth attenuation `e^(−d/4)` multiplies **only the wave term**. Bed shear from the tide does not care how deep the water is; only waves are attenuated with depth — shallow waves reach the bed, deep ones do not. So in calm weather the tide lifts a thin layer of fluff, and only when a strong wind opens the second channel do you get a spike.
+
+That structure was not tuned in — it was forced by the field observation of 16 October 2026 (below).
+
+### 4. Time evolution
+
+Concentration relaxes towards the equilibrium value with a first-order lag, 0.75 h on the rise and 2.4 h on the settle:
+
+```
+C(t+dt) = Ceq + (C − Ceq)·exp(−dt/Ts)
+```
+
+Which is why the peak arrives **one to two hours after maximum ebb**, not at maximum current.
+
+### 5. Bed mud stock
+
+A slow 30-day-memory variable `Q` accumulates rainfall and wind disturbance:
+
+```
+Q ← Q + (12·rain + 0.8·max(0, U−4) − Q)·(1 − e^(−1h/30d))
+qf = 0.30 + 0.55·Q²
+```
+
+It answers "how much mud is lying on the bed to be picked up", and gives the model its seasonal and weather-scale memory.
+
+---
+
+## Data
+
+| Quantity | Source |
+|---|---|
+| Wind, gusts, rain | Open-Meteo Forecast API (ECMWF), hourly, past 7 days + next 7 days |
+| Offshore wave height, period | Open-Meteo Marine API |
+| Mud stock | Open-Meteo Archive API (ERA5), 95 days hourly |
+| Tide | Stony Point harmonic constants, calibrated to tide tables |
+| Coastline, depth, tidal planes | OSM water polygon; Western Port Conceptual Model (2015); Sediment Supply & Seagrass (CSIRO 2016) |
+
+Data is fetched on every page load and recomputed every 15 minutes. **It needs internet access** — a preview panel with a restrictive CSP will block the API calls; open it in a normal browser.
+
+---
+
+## Where the parameters come from
+
+This is the part worth being explicit about.
+
+### 7 calibrated points
+
+Only these seven have parameters with evidence behind them:
+
+| Site | Annual median | Basis |
+|---|---|---|
+| Western Entrance | 3 mg/L | Open sand, 14 m deep; ADCP peak current 1.25 m/s |
+| Eastern Entrance | 4 mg/L | 6 m deep, sand |
+| Stony Point | 6 mg/L | EPA Hastings / Barrallier about 5 mg/L year-round; ADCP 0.85–1.00 m/s |
+| Tankerton | 10 mg/L | Field observation, 16 Oct 2026 (below) |
+| Middle Spit | 16 mg/L | Order-of-magnitude estimate |
+| Tyabb Bank | 18 mg/L | Order-of-magnitude estimate |
+| Quail Bank | 15 mg/L | Order-of-magnitude estimate |
+
+The suspendable mud mass `M` at each point was found by bisection, driving the model with five years (2020–2024) of hourly ERA5 weather until the annual median landed on the target. A 12-month bias-correction table was then fitted so that monthly medians match the EPA 1990–2009 monthly values.
+
+**Caveat:** Tankerton, Middle Spit, Tyabb Bank and Quail Bank have **no co-located measurements**. Their values carry magnitude, not precision. Their "monthly typical" is set from depth (1.3–3.2 m) and proximity to mud banks.
+
+### 15 additional control points
+
+To make an arbitrary location computable, 15 more control points were added (Hastings, Rhyll, Corinella, Tooradin, Lang Lang, the French Island shoreline, and so on). Their parameters are estimated from chart depth and the report's descriptions — **not measured**.
+
+### Spatial interpolation
+
+Parameters at any (lat, lon) come from inverse-distance weighting over the 22 control points (weight ∝ 1/d^2.8), with `M`, `typ` and `CORR` interpolated in log space. The control points themselves take exact values, so results at a calibrated site are identical to the calibrated result.
+
+Fetch is not interpolated — it is ray-cast against the coastline polygon, so island shelter and the open bay mouth come out right automatically.
+
+---
+
+## Field check: 16 October 2026
+
+The only piece of ground truth. On that day at Tankerton the water was clear from 08:00 to 14:00 — bottom visible at 4–5 m, very clear at 2–3 m. On previous fishing trips 4–5 m was usually *not* visible.
+
+**Tide first.** High water 05:00 (1.35 m AHD) → low water 11:03 (−0.71 m) → next high 16:42 (0.99 m). The observation window straddles the 11:03 low-water slack — the six hours of weakest current and lowest bed shear in the whole day. Wind was 3–6 m/s, dead calm 1.4 m/s at 12:00–13:00, no rain. It was always going to be a clear day.
+
+**What the model got wrong.** The old version summed tidal and wave shear and multiplied by a single `e^(−d/4)`. At 08:00, mid-ebb, τ ≈ 0.22 Pa, so it insisted the bed was being stirred and returned 10–12 mg/L — two to three times too high — with the clearest window two to four hours late.
+
+Tried and rejected:
+
+- Lowering `kc` alone — recalibration absorbs it, no change in shape
+- Raising `τcr` (0.15–0.35) — `M` runs into its cap and concentration saturates at `Cmax`; structurally impossible → **τcr ≈ 0.10 Pa is the only self-consistent value**
+- Adding a flood/ebb phase weight — widened the window but did not fix 08:00–10:00; reverted
+
+What was changed was **structure, not parameters**: tide and waves entrain independently, and only the wave term is attenuated with depth. Tankerton's `kc` was dropped from 0.75 to 0.34 in the same pass (about 0.25 m/s peak ebb current, consistent with 0.2–0.3 m/s on a shallow bank).
+
+**Result:** 02:00 peak 45 → 08:00 6.5 → 11:00 5.0 → 14:00 3.2 → 17:00 2.7 mg/L (clarity 2.2 → 4.9 m), back to 13 on the evening flood. Trend and magnitude line up; the early morning is still about twice the observed turbidity.
+
+---
+
+## Does offshore swell push turbid water in through the entrance?
+
+No — not in Western Port. Checked against ERA5 and Marine data for 18 October – 4 November 2026:
+
+| | Calm day, 18 Oct | Big swell, 26 Oct |
+|---|---|---|
+| Offshore Hs at Flinders | 0.6–0.7 m | 3.2–3.6 m |
+| **Western Entrance TSS** | 1.3–3.4 mg/L | **1.4–4.7 mg/L** |
+| Tankerton TSS | 2.5–15 mg/L | 45–150 mg/L |
+
+Offshore swell went up fivefold and the entrance barely moved, from 2.5 to 4 mg/L — because the entrance is 14 m deep, so `sinh(kd)` leaves almost nothing of the orbital velocity at the bed, and the sandy bed has a high entrainment threshold.
+
+Lag correlation does not support transport either: the correlation between offshore Hs and Tankerton TSS peaks at **lag 0 hours** (r = 0.41) and falls off monotonically. A "stirred up at the entrance, arrives hours later" mechanism would show a peak at some positive lag. It does not.
+
+The real mechanism is **common forcing**: the same ocean storm produces both the offshore swell and the strong local wind inside the bay, and that local wind stirs the shallow bed directly. On 26 October, 100 % of Tankerton's bed shear came from waves (τw 0.33–0.90 Pa vs τc 0.00–0.05 Pa).
+
+**Practical upshot:** watching the swell at Flinders to decide whether to go is the right instinct, but the reasoning changes — it is not "the entrance is turbid", it is "the local bed is being stirred". The exception is a high swell with no wind inside the bay, when Tankerton may stay clear.
+
+---
+
+## What it does not know
+
+- **No 3D hydrodynamics, no advection.** The report notes a clockwise circulation around French Island carrying fine mud from the northern banks towards the eastern shore, so these banks are not simply "mud produced here, resuspended here". This model computes local resuspension only; mud advected in from elsewhere is not represented, and the absolute level is anchored by bias correction instead.
+- **No flocculation, no grain-size change, no seagrass wave damping, no bioturbation.**
+- **"Monthly typical" is a median, not a mean.** The suspended-sediment distribution is strongly right-skewed (a few windy days pull the mean up), so on a calm dry day the reading will sit well below it — that is a real result, not a bug.
+- **Uncertainty grows away from the calibrated points.** The 15 additional control points are estimates, and interpolation between them is a smooth blend with no physical constraint behind it.
+- **Wind and rain come from a reanalysis/forecast grid**, so near-shore local wind (sea breeze, terrain acceleration) may be smoothed out.
+
+**Absolute uncertainty is roughly ±50 %.** Good for "is it turbid today, and when will it be worst"; not good enough for engineering decisions.
+
+---
+
+## Run locally
+
+A single file, no build step:
+
+```bash
+git clone https://github.com/wenhuoo/wpwater.git
+cd wpwater
+open index.html        # or just open it in a browser
+```
+
+To change parameters, edit the `CTRL` array in `index.html` — 22 rows, one per control point:
+
+```
+[lat, lon, depth m, kc, log10(M), background mg/L, swell penetration, Cmax,
+ tide lag h, range amplification, 12 monthly typicals, 12 monthly corrections]
+```
+
+Reload and it takes effect. No compilation.
+
+---
+
+## References
+
+- *Western Port Conceptual Model* — Draft Report, 2015
+- *Western Port Sediment Supply and Seagrass* — CSIRO, 2016
+- EPA Victoria, 1998–2009 water quality monitoring
+- [Open-Meteo](https://open-meteo.com/) — weather and wave data
+
+---
+
+# 中文
+
+[English](#western-port-turbidity) · **中文**
+
+西港（Western Port, Victoria）任意一点的悬沙浓度实时预测。点地图选位置，给出当前值与未来 7 天的走势。
+
+**https://wenhuoo.github.io/wpwater/**
+
+---
+
+## 它做什么
+
+点地图上任意水域即可。页面把坐标记在地址栏里（`#-38.3831,145.2707`），可以直接把某个钓点发给别人。
+
+页面只给四样东西：当前悬沙浓度、浊度与透明度、本月典型值对比、14 天曲线。
+
+界面语言跟随浏览器（`zh*` → 中文，其余 → 英文）。可以用 `?lang=zh` 或 `?lang=en` 强制指定。
 
 ---
 
@@ -33,7 +261,7 @@
 潮流流速由潮位变化率换算：
 
 ```
-U = kc · |dh/dt|
+U  = kc · |dh/dt|
 τc = ρ · Cd · U²        ρ=1025, Cd=0.0025
 ```
 
@@ -216,5 +444,5 @@ open index.html        # 或直接用浏览器打开
 
 - *Western Port Conceptual Model* — Draft Report, 2015
 - *Western Port Sediment Supply and Seagrass* — CSIRO, 2016
-- EPA Victoria, 1990–2009 水质监测
+- EPA Victoria, 1998–2009 水质监测
 - [Open-Meteo](https://open-meteo.com/) — 气象与波浪数据
